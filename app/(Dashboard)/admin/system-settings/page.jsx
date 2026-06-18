@@ -110,6 +110,12 @@ const DEFAULT_SETTINGS = {
   enableComplaintEmails: true,
   enableNoticeEmails: true,
   enableWelcomeEmails: true,
+  smtpHost: "",
+  smtpPort: 587,
+  smtpSecure: false,
+  smtpUser: "",
+  smtpPass: "",
+  smtpFrom: "",
   autoGenerateRentInvoices: true,
   autoGenerateStaffSalaries: true,
 };
@@ -648,6 +654,94 @@ export default function SystemSettingsPage() {
               </p>
             </div>
           )}
+
+          {settings.enableEmailService && (!settings.smtpHost || !settings.smtpUser || !settings.smtpPass) && (
+            <div className="flex items-center gap-2 px-4 py-3 bg-rose-50 border border-rose-200 rounded-xl">
+              <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0" />
+              <p className="text-xs text-rose-800 font-medium">
+                SMTP credentials are not configured. Outgoing email notification features will remain suspended for your portal until credentials are saved below.
+              </p>
+            </div>
+          )}
+
+          {/* SMTP Credentials Section */}
+          <SectionCard
+            title="SMTP Server Credentials"
+            subtitle="Configure your outgoing SMTP server to enable custom email delivery"
+            icon={Mail}
+            iconColor="text-blue-500"
+          >
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-widest pl-1">
+                  SMTP Host
+                </label>
+                <input
+                  type="text"
+                  value={settings.smtpHost || ""}
+                  onChange={(e) => set("smtpHost", e.target.value)}
+                  className="mt-1.5 w-full h-11 px-4 text-sm rounded-xl border border-gray-100 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all dark:bg-muted/10 dark:border-border dark:text-foreground"
+                  placeholder="e.g. smtp.gmail.com"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-widest pl-1">
+                  SMTP Port
+                </label>
+                <input
+                  type="number"
+                  value={settings.smtpPort || ""}
+                  onChange={(e) => set("smtpPort", e.target.value ? parseInt(e.target.value) : "")}
+                  className="mt-1.5 w-full h-11 px-4 text-sm rounded-xl border border-gray-100 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all dark:bg-muted/10 dark:border-border dark:text-foreground"
+                  placeholder="e.g. 587 or 465"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-widest pl-1">
+                  SMTP Username
+                </label>
+                <input
+                  type="text"
+                  value={settings.smtpUser || ""}
+                  onChange={(e) => set("smtpUser", e.target.value)}
+                  className="mt-1.5 w-full h-11 px-4 text-sm rounded-xl border border-gray-100 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all dark:bg-muted/10 dark:border-border dark:text-foreground"
+                  placeholder="user@example.com"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-widest pl-1">
+                  SMTP Password
+                </label>
+                <input
+                  type="password"
+                  value={settings.smtpPass || ""}
+                  onChange={(e) => set("smtpPass", e.target.value)}
+                  className="mt-1.5 w-full h-11 px-4 text-sm rounded-xl border border-gray-100 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all dark:bg-muted/10 dark:border-border dark:text-foreground"
+                  placeholder="••••••••••••••••"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-widest pl-1">
+                  Sender Email (From Address)
+                </label>
+                <input
+                  type="text"
+                  value={settings.smtpFrom || ""}
+                  onChange={(e) => set("smtpFrom", e.target.value)}
+                  className="mt-1.5 w-full h-11 px-4 text-sm rounded-xl border border-gray-100 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all dark:bg-muted/10 dark:border-border dark:text-foreground"
+                  placeholder="e.g. no-reply@myhostel.com"
+                />
+              </div>
+              <div className="flex items-center pt-6">
+                <ToggleRow
+                  label="Secure Connection (SSL/TLS)"
+                  desc="Enable if port is 465 (usually SSL/TLS)"
+                  value={settings.smtpSecure}
+                  onChange={(v) => set("smtpSecure", v)}
+                />
+              </div>
+            </div>
+          </SectionCard>
 
           {/* Individual email controls */}
           <SectionCard

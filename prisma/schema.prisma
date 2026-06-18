@@ -52,14 +52,21 @@ model Tenant {
 }
 
 model Subscription {
-  id          String   @id @default(cuid())
-  tenantId    String   @unique
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  plan        String   // "starter", "growth", "enterprise"
-  status      String   // "active", "pending", "expired"
-  paidUntil   DateTime
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                  String   @id @default(cuid())
+  tenantId            String   @unique
+  tenant              Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  plan                String   // "starter", "growth", "enterprise"
+  status              String   // "active", "pending", "expired"
+  paidUntil           DateTime
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  // Custom Overrides (Super Admin controlled)
+  maxRoomsOverride    Int?
+  maxUsersOverride    Int?
+  maxHostelsOverride  Int?
+  aiFeatureBypass     Boolean  @default(false)
+  smtpFeatureBypass   Boolean  @default(false)
 }
 
 

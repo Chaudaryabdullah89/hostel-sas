@@ -43,6 +43,11 @@ export async function GET(request: NextRequest) {
             status: t.subscriptions[0].status,
             paidUntil: t.subscriptions[0].paidUntil,
             plan: t.subscriptions[0].plan,
+            maxRoomsOverride: t.subscriptions[0].maxRoomsOverride,
+            maxUsersOverride: t.subscriptions[0].maxUsersOverride,
+            maxHostelsOverride: t.subscriptions[0].maxHostelsOverride,
+            aiFeatureBypass: t.subscriptions[0].aiFeatureBypass,
+            smtpFeatureBypass: t.subscriptions[0].smtpFeatureBypass,
           }
         : null,
       stats: {

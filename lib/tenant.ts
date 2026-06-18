@@ -3,9 +3,16 @@ import { headers } from 'next/headers';
 
 const rawPrisma = new PrismaClient();
 
+const getBaseDomain = () => {
+  const base = process.env.NEXT_PUBLIC_BASE_URL || 'portalhms.com';
+  return base.replace(/^https?:\/\//, '').split(':')[0];
+};
+
+const baseDomain = getBaseDomain();
+
 const ROOT_HOSTNAMES = new Set([
-  'portalhms.com',
-  'www.portalhms.com',
+  baseDomain,
+  `www.${baseDomain}`,
   'localhost',
   '127.0.0.1',
 ]);
@@ -17,8 +24,8 @@ export function extractTenantSlug(host: string | null): string | null {
   if (cleanHost.endsWith('.localhost')) {
     return cleanHost.replace('.localhost', '');
   }
-  if (cleanHost.endsWith('.portalhms.com')) {
-    return cleanHost.replace('.portalhms.com', '');
+  if (cleanHost.endsWith(`.${baseDomain}`)) {
+    return cleanHost.replace(`.${baseDomain}`, '');
   }
   return null;
 }

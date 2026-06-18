@@ -56,8 +56,12 @@ export async function getTenantPlan(tenantId: string): Promise<PlanKey> {
  */
 export async function canAddRoom(tenantId: string) {
   const plan = await getTenantPlan(tenantId);
-  const limit = PLAN_LIMITS[plan].maxRooms;
+  const sub = await rawPrisma.subscription.findUnique({
+    where: { tenantId },
+    select: { maxRoomsOverride: true },
+  });
 
+  const limit = sub?.maxRoomsOverride ?? PLAN_LIMITS[plan].maxRooms;
   const current = await rawPrisma.room.count({ where: { tenantId } });
 
   return {
@@ -65,6 +69,7 @@ export async function canAddRoom(tenantId: string) {
     current,
     max: limit,
     plan,
+    isOverridden: sub?.maxRoomsOverride !== null && sub?.maxRoomsOverride !== undefined,
   };
 }
 
@@ -73,8 +78,12 @@ export async function canAddRoom(tenantId: string) {
  */
 export async function canAddUser(tenantId: string) {
   const plan = await getTenantPlan(tenantId);
-  const limit = PLAN_LIMITS[plan].maxUsers;
+  const sub = await rawPrisma.subscription.findUnique({
+    where: { tenantId },
+    select: { maxUsersOverride: true },
+  });
 
+  const limit = sub?.maxUsersOverride ?? PLAN_LIMITS[plan].maxUsers;
   const current = await rawPrisma.user.count({
     where: { tenantId, isActive: true },
   });
@@ -84,6 +93,7 @@ export async function canAddUser(tenantId: string) {
     current,
     max: limit,
     plan,
+    isOverridden: sub?.maxUsersOverride !== null && sub?.maxUsersOverride !== undefined,
   };
 }
 
@@ -92,8 +102,12 @@ export async function canAddUser(tenantId: string) {
  */
 export async function canAddHostel(tenantId: string) {
   const plan = await getTenantPlan(tenantId);
-  const limit = PLAN_LIMITS[plan].maxHostels;
+  const sub = await rawPrisma.subscription.findUnique({
+    where: { tenantId },
+    select: { maxHostelsOverride: true },
+  });
 
+  const limit = sub?.maxHostelsOverride ?? PLAN_LIMITS[plan].maxHostels;
   const current = await rawPrisma.hostel.count({ where: { tenantId } });
 
   return {
@@ -101,6 +115,7 @@ export async function canAddHostel(tenantId: string) {
     current,
     max: limit,
     plan,
+    isOverridden: sub?.maxHostelsOverride !== null && sub?.maxHostelsOverride !== undefined,
   };
 }
 
@@ -109,6 +124,12 @@ export async function canAddHostel(tenantId: string) {
  */
 export async function canUseAI(tenantId: string): Promise<boolean> {
   const plan = await getTenantPlan(tenantId);
+  const sub = await rawPrisma.subscription.findUnique({
+    where: { tenantId },
+    select: { aiFeatureBypass: true },
+  });
+
+  if (sub?.aiFeatureBypass) return true;
   return PLAN_LIMITS[plan].ai;
 }
 

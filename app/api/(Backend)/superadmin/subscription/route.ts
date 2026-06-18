@@ -8,14 +8,28 @@ function checkSuperAdmin(request: NextRequest): boolean {
   return key === process.env.SUPER_ADMIN_KEY;
 }
 
-// PATCH: Update subscription (activate, expire, change plan, toggle tenant active)
+// PATCH: Update subscription (activate, expire, change plan, toggle tenant active, update custom limits)
 export async function PATCH(request: NextRequest) {
   if (!checkSuperAdmin(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
-    const { tenantId, action, plan, paidUntilDays, isActive } = await request.json();
+    const body = await request.json();
+    const {
+      tenantId,
+      action,
+      plan,
+      paidUntilDays,
+      paidUntilDate,
+      isActive,
+      maxRoomsOverride,
+      maxUsersOverride,
+      maxHostelsOverride,
+      aiFeatureBypass,
+      smtpFeatureBypass,
+      status,
+    } = body;
 
     if (!tenantId) {
       return NextResponse.json({ error: "tenantId is required" }, { status: 400 });
@@ -27,9 +41,14 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (action === "activate") {
-      // Activate subscription for N days
-      const days = paidUntilDays || 30;
-      const paidUntil = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+      // Activate subscription for N days or custom date
+      let paidUntil: Date;
+      if (paidUntilDate) {
+        paidUntil = new Date(paidUntilDate);
+      } else {
+        const days = paidUntilDays || 30;
+        paidUntil = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+      }
       const updatedPlan = plan || tenant.plan;
 
       await rawPrisma.$transaction([
@@ -44,7 +63,45 @@ export async function PATCH(request: NextRequest) {
         }),
       ]);
 
-      return NextResponse.json({ success: true, message: `Subscription activated for ${days} days.` });
+      return NextResponse.json({ success: true, message: `Subscription activated until ${paidUntil.toLocaleDateString()}.` });
+    }
+
+    if (action === "update") {
+      const updateData: any = {};
+      if (plan) updateData.plan = plan;
+      if (status) updateData.status = status;
+      if (paidUntilDate) updateData.paidUntil = new Date(paidUntilDate);
+      
+      updateData.maxRoomsOverride = maxRoomsOverride === null || maxRoomsOverride === "" ? null : Number(maxRoomsOverride);
+      updateData.maxUsersOverride = maxUsersOverride === null || maxUsersOverride === "" ? null : Number(maxUsersOverride);
+      updateData.maxHostelsOverride = maxHostelsOverride === null || maxHostelsOverride === "" ? null : Number(maxHostelsOverride);
+      
+      if (aiFeatureBypass !== undefined) updateData.aiFeatureBypass = Boolean(aiFeatureBypass);
+      if (smtpFeatureBypass !== undefined) updateData.smtpFeatureBypass = Boolean(smtpFeatureBypass);
+
+      const tenantData: any = {};
+      if (plan) tenantData.plan = plan;
+      if (isActive !== undefined) tenantData.isActive = Boolean(isActive);
+
+      await rawPrisma.$transaction([
+        rawPrisma.tenant.update({
+          where: { id: tenantId },
+          data: tenantData,
+        }),
+        rawPrisma.subscription.upsert({
+          where: { tenantId },
+          update: { ...updateData },
+          create: {
+            tenantId,
+            plan: plan || tenant.plan,
+            status: status || "active",
+            paidUntil: paidUntilDate ? new Date(paidUntilDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+            ...updateData,
+          },
+        }),
+      ]);
+
+      return NextResponse.json({ success: true, message: "Tenant configuration and limits updated successfully." });
     }
 
     if (action === "expire") {

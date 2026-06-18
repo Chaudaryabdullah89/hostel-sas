@@ -13,11 +13,18 @@ const routePermissions: Record<string, string[]> = {
 };
 
 // ===============================
-// Root domains — never treated as tenant slugs
+// Root domains — resolved dynamically from base url
 // ===============================
+const getBaseDomain = () => {
+    const base = process.env.NEXT_PUBLIC_BASE_URL || 'portalhms.com';
+    return base.replace(/^https?:\/\//, '').split(':')[0];
+};
+
+const baseDomain = getBaseDomain();
+
 const ROOT_HOSTNAMES = new Set([
-    'portalhms.com',
-    'www.portalhms.com',
+    baseDomain,
+    `www.${baseDomain}`,
     'localhost',
     '127.0.0.1',
 ]);
@@ -50,9 +57,9 @@ function extractTenantSlug(hostname: string): string | null {
         return host.replace('.localhost', '');
     }
 
-    // Production: slug.portalhms.com → slug
-    if (host.endsWith('.portalhms.com')) {
-        return host.replace('.portalhms.com', '');
+    // Production: slug.customdomain.com → slug
+    if (host.endsWith(`.${baseDomain}`)) {
+        return host.replace(`.${baseDomain}`, '');
     }
 
     return null;
