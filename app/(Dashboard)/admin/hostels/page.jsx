@@ -31,7 +31,8 @@ import {
     Coins,
     Globe,
     Info,
-    Sparkle
+    Sparkle,
+    UserCheck,
 } from "lucide-react"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
 import {
@@ -78,6 +79,12 @@ const HostelsPage = () => {
     const [searchterm, setsearchterm] = useState('');
     const [filterType, setFilterType] = useState('All');
     const [deletingHostelId, setDeletingHostelId] = useState(null)
+    const [assigningHostel, setAssigningHostel] = useState(null); // hostel being assigned warden
+    const [assigningLoading, setAssigningLoading] = useState(false);
+    const [selectedWardenId, setSelectedWardenId] = useState('');
+
+    // Fetch all wardens for assignment
+    const { data: wardensData } = useuserbyrole('WARDEN');
 
     const hostelsToDisplay = (apiResponse?.data || [])
         .filter(h => isAdmin || (isWarden && h.id === userProfile?.hostelId))
@@ -135,6 +142,34 @@ const HostelsPage = () => {
         setDeletingHostelId(id)
         mutate(id)
     }
+
+    const handleAssignWarden = async () => {
+        if (!assigningHostel || !selectedWardenId) {
+            toast.error('Select a warden to assign');
+            return;
+        }
+        setAssigningLoading(true);
+        try {
+            const res = await fetch('/api/hostels/assign-warden', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ hostelId: assigningHostel.id, wardenId: selectedWardenId, action: 'assign' }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                toast.success('Warden assigned successfully!');
+                setAssigningHostel(null);
+                setSelectedWardenId('');
+                queryClient.invalidateQueries({ queryKey: QueryKeys.hostellist() });
+            } else {
+                toast.error(data.error || 'Failed to assign warden');
+            }
+        } catch {
+            toast.error('Network error');
+        } finally {
+            setAssigningLoading(false);
+        }
+    };
 
     const getStatusTheme = (status) => {
         switch (status) {
@@ -346,6 +381,16 @@ const HostelsPage = () => {
                                                     >
                                                         <Edit className="h-3.5 w-3.5" /> Edit
                                                     </DropdownMenuItem>
+                                                    <DropdownMenuItem
+                                                        className="p-2 gap-3 rounded-lg font-black text-[9px] uppercase tracking-wider text-blue-600 cursor-pointer"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setAssigningHostel(hostel);
+                                                            setSelectedWardenId(hostel.basicInfo?.wardenUsers?.[0]?.id || '');
+                                                        }}
+                                                    >
+                                                        <UserCheck className="h-3.5 w-3.5" /> Assign Warden
+                                                    </DropdownMenuItem>
                                                     <DropdownMenuItem className="p-2 gap-3 rounded-lg font-black text-[9px] uppercase tracking-wider text-red-500 focus:bg-red-50 focus:text-red-600 cursor-pointer" onSelect={(e) => e.preventDefault()}>
                                                         <AlertDialog>
                                                             <AlertDialogTrigger
@@ -439,6 +484,67 @@ const HostelsPage = () => {
 
 
             </main>
+
+            {/* ── Warden Assignment Modal ── */}
+            {assigningHostel && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+                    <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl border border-gray-100">
+                        <div className="flex items-center gap-3 mb-6">
+                            <div className="w-11 h-11 bg-blue-50 rounded-2xl flex items-center justify-center">
+                                <UserCheck className="w-5.5 h-5.5 text-blue-600" />
+                            </div>
+                            <div>
+                                <h3 className="font-black text-gray-900 uppercase tracking-tight">Assign Warden</h3>
+                                <p className="text-xs text-gray-400 font-medium">{assigningHostel.name}</p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="text-xs font-bold text-gray-400 uppercase tracking-widest block mb-2">Select Warden</label>
+                                <select
+                                    value={selectedWardenId}
+                                    onChange={(e) => setSelectedWardenId(e.target.value)}
+                                    className="w-full h-11 px-4 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                                >
+                                    <option value="">-- Select a warden --</option>
+                                    {(wardensData?.data || wardensData || []).map((w) => (
+                                        <option key={w.id} value={w.id}>
+                                            {w.name} {w.email ? `(${w.email})` : ''} {w.hostelId ? '• Assigned' : '• Available'}
+                                        </option>
+                                    ))}
+                                </select>
+                                {(wardensData?.data || wardensData || []).length === 0 && (
+                                    <p className="text-xs text-amber-600 mt-2 font-medium">
+                                        No wardens found. Create a warden user first from Users Records.
+                                    </p>
+                                )}
+                            </div>
+
+                            <div className="flex gap-3 pt-2">
+                                <button
+                                    onClick={() => { setAssigningHostel(null); setSelectedWardenId(''); }}
+                                    className="flex-1 h-11 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-all text-sm"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleAssignWarden}
+                                    disabled={assigningLoading || !selectedWardenId}
+                                    className="flex-1 h-11 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all text-sm disabled:opacity-60 flex items-center justify-center gap-2"
+                                >
+                                    {assigningLoading ? (
+                                        <RefreshCw className="w-4 h-4 animate-spin" />
+                                    ) : (
+                                        <UserCheck className="w-4 h-4" />
+                                    )}
+                                    Assign Warden
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

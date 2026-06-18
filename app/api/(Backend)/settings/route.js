@@ -41,6 +41,18 @@ export async function PUT(req) {
             return errorResponse("No valid settings fields provided.", 400);
         }
 
+        // Type casting and coercion for SMTP settings
+        if ('smtpPort' in data) {
+            if (data.smtpPort === '' || data.smtpPort === null || data.smtpPort === undefined) {
+                data.smtpPort = null;
+            } else {
+                data.smtpPort = parseInt(data.smtpPort, 10);
+            }
+        }
+        if ('smtpSecure' in data) {
+            data.smtpSecure = data.smtpSecure === true || data.smtpSecure === 'true';
+        }
+
         const settings = await prisma.systemSettings.upsert({
             where: { id: "global" },
             update: data,

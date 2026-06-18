@@ -4,6 +4,8 @@ import { NextResponse } from "next/server";
 import { stringSimilarity } from "string-similarity-js";
 import { isServiceEnabled } from "@/lib/permissions";
 import { requireAuth } from "@/lib/apiAuth";
+import { getCurrentTenantId } from "@/lib/tenant";
+import { canUseAI } from "@/lib/limits";
 
 /* =====================================================
    AI BRAIN CONFIGURATION
@@ -246,6 +248,22 @@ export async function GET(req: Request) {
     // Security: require valid JWT — never trust userId from query string
     const guard = await requireAuth();
     if (!guard.ok) return guard.response;
+
+    // ── Plan limit check ─────────────────────────────────────────────────
+    try {
+        const tenantId = await getCurrentTenantId();
+        if (tenantId) {
+            const allowed = await canUseAI(tenantId);
+            if (!allowed) {
+                return NextResponse.json({
+                    success: false,
+                    error: "AI Assistant is not available on your plan. Please upgrade to a higher plan to enable AI features.",
+                    limitExceeded: true
+                }, { status: 403 });
+            }
+        }
+    } catch {}
+
     const userId = guard.user.userId || guard.user.id;
 
     try {
@@ -278,6 +296,22 @@ export async function POST(req: Request) {
     // Security: require valid JWT — userId from body is IGNORED
     const guard = await requireAuth();
     if (!guard.ok) return guard.response;
+
+    // ── Plan limit check ─────────────────────────────────────────────────
+    try {
+        const tenantId = await getCurrentTenantId();
+        if (tenantId) {
+            const allowed = await canUseAI(tenantId);
+            if (!allowed) {
+                return NextResponse.json({
+                    success: false,
+                    error: "AI Assistant is not available on your plan. Please upgrade to a higher plan to enable AI features.",
+                    limitExceeded: true
+                }, { status: 403 });
+            }
+        }
+    } catch {}
+
     const userId = guard.user.userId || guard.user.id;
 
     try {
@@ -751,7 +785,8 @@ export async function POST(req: Request) {
                         description: message,
                         category: complaintData.category as any,
                         priority: complaintData.urgency === "HIGH" ? "HIGH" : "MEDIUM",
-                        status: "PENDING"
+                        status: "PENDING",
+                        tenantId: "", // Injected at runtime by Prisma client extension
                     }
                 });
 

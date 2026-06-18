@@ -8,6 +8,8 @@ import { welcomeEmail, getBaseUrl } from "@/lib/utils/emailTemplates";
 import { requireAuth, requireRoles } from "@/lib/apiAuth";
 import { errorResponse, successResponse } from "@/lib/apiResponse";
 import { getBranding } from "@/lib/permissions";
+import { getCurrentTenantId } from "@/lib/tenant";
+import { canAddUser } from "@/lib/limits";
 
 export async function GET(request) {
     const guard = await requireAuth();
@@ -153,6 +155,18 @@ export async function POST(request) {
             city, address, guardianName, guardianPhone, emergencyContact, currentResidence, otherImages,
             canManageExpenses, canManageMess, canManageGeneral, canManageUtilities, canManageMaintenance, canManageSalaries
         } = body;
+
+        // ── Plan limit check ─────────────────────────────────────────────────
+        const tenantId = await getCurrentTenantId();
+        if (tenantId) {
+            const limitCheck = await canAddUser(tenantId);
+            if (!limitCheck.allowed) {
+                return errorResponse(
+                    `User limit reached. Your ${limitCheck.plan} plan allows up to ${limitCheck.max} users (currently ${limitCheck.current}). Please upgrade your plan.`,
+                    403
+                );
+            }
+        }
 
         // Check if user exists
         const existing = await prisma.user.findUnique({ where: { email } });

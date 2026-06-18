@@ -817,6 +817,14 @@ model SystemSettings {
   companyName      String? @default("Hostel Management System")
   companyShortName String? @default("HMS")
 
+  // SMTP Configuration
+  smtpHost   String?
+  smtpPort   Int?
+  smtpSecure Boolean @default(false)
+  smtpUser   String?
+  smtpPass   String?
+  smtpFrom   String?
+
   lastCronRun DateTime?
   updatedAt   DateTime  @updatedAt
   tenantId  String   @unique

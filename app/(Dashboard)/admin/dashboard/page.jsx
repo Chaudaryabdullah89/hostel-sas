@@ -1,5 +1,7 @@
 "use client"
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useHostel } from "@/hooks/usehostel";
 import Link from "next/link";
 import {
     ChevronRight,
@@ -51,6 +53,7 @@ import { DashboardSkeleton } from "@/components/ui/skeletons";
 import { RevenueExpenseChart, HostelPerformanceChart, OccupancyDonutChart, ComplaintStatusChart } from "@/components/ui/Charts";
 
 const AdminDashboard = () => {
+    const router = useRouter();
     const [selectedPeriod, setSelectedPeriod] = useState("month");
     const [startDate, setStartDate] = useState("");
     const [endDate, setEndDate] = useState("");
@@ -66,8 +69,18 @@ const AdminDashboard = () => {
     const { data: pendingComplaints, isLoading: pendingLoading } = useComplaints({ status: "PENDING" });
     const { data: financialStats, isLoading: financialsLoading } = useFinancialStats();
     const { data: recentPayments, isLoading: paymentsLoading } = useAllPayments({ limit: 5 });
+    const { data: hostelsData, isLoading: hostelsLoading } = useHostel();
 
     const updateMutation = useUpdateComplaint();
+
+    useEffect(() => {
+        if (!hostelsLoading && hostelsData?.success && (!hostelsData?.data || hostelsData.data.length === 0)) {
+            const skipped = localStorage.getItem("skipped_onboarding");
+            if (!skipped) {
+                router.push("/admin/onboarding");
+            }
+        }
+    }, [hostelsLoading, hostelsData, router]);
 
     // NOTE: Automation (overdue invoices, rent generation) is handled by the /api/cron endpoint.
     // Do NOT trigger it here — it fires on every dashboard mount and is expensive.
@@ -85,7 +98,7 @@ const AdminDashboard = () => {
         });
     };
 
-    if (reportsLoading || complaintsLoading || financialsLoading) return (
+    if (reportsLoading || complaintsLoading || financialsLoading || hostelsLoading) return (
         <DashboardSkeleton />
     );
 

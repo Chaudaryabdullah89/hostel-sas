@@ -20,6 +20,8 @@ import {
     Wrench,
     BarChart3,
     Settings,
+    Plane,
+    Crown,
     type LucideIcon,
 } from "lucide-react";
 
@@ -64,6 +66,7 @@ export const NAVIGATION_GROUPS: Record<string, NavGroup[]> = {
                 { title: "Bookings",     url: "/admin/bookings",   icon: Calendar,      role: "admin", permissionKey: "manage_bookings",  featureKey: "enableGuestBookings" },
                 { title: "Room Swaps",   url: "/admin/room-swaps", icon: Sparkles,      role: "admin", permissionKey: "manage_bookings" },
                 { title: "Complaints",   url: "/admin/complaints", icon: MessageSquare, role: "admin", permissionKey: "manage_complaints", featureKey: "enableComplaintsSystem" },
+                { title: "Leave Requests", url: "/admin/leaves",   icon: Plane,         role: "admin", permissionKey: "manage_users" },
                 { title: "Notice Board", url: "/admin/notices",    icon: Megaphone,     role: "admin", permissionKey: "manage_notices",    featureKey: "enableNoticeBoard" },
                 { title: "Mess Menu",    url: "/admin/mess",       icon: Utensils,      role: "admin", permissionKey: "manage_mess",       featureKey: "enableMess" },
             ],
@@ -98,8 +101,9 @@ export const NAVIGATION_GROUPS: Record<string, NavGroup[]> = {
             title: "System",
             icon: Settings,
             items: [
-                { title: "Settings", url: "/admin/system-settings", icon: ShieldCheck, role: "admin" },
-                { title: "Profile",  url: "/admin/profile",         icon: User,        role: "admin" },
+                { title: "Settings",     url: "/admin/system-settings", icon: ShieldCheck, role: "admin" },
+                { title: "Subscription", url: "/admin/subscription",     icon: Crown,       role: "admin" },
+                { title: "Profile",      url: "/admin/profile",          icon: User,        role: "admin" },
             ],
         },
     ],
@@ -177,9 +181,10 @@ export const NAVIGATION_GROUPS: Record<string, NavGroup[]> = {
             title: "Services",
             icon: LifeBuoy,
             items: [
-                { title: "Payments",         url: "/guest/payments", icon: CreditCard, role: "guest", permissionKey: "view_payments",      featureKey: "enablePaymentProcessing" },
-                { title: "Mess Schedule",    url: "/guest/mess",     icon: Utensils,   role: "guest", permissionKey: "access_guest_mess",  featureKey: "enableMess" },
-                { title: "Support",          url: "/guest/support",  icon: LifeBuoy,   role: "guest", permissionKey: "access_guest_support" },
+                { title: "Payments",      url: "/guest/payments", icon: CreditCard, role: "guest", permissionKey: "view_payments",      featureKey: "enablePaymentProcessing" },
+                { title: "Mess Schedule", url: "/guest/mess",     icon: Utensils,   role: "guest", permissionKey: "access_guest_mess",  featureKey: "enableMess" },
+                { title: "Leave Request",url: "/guest/leave",    icon: Plane,      role: "guest", permissionKey: "access_guest_support" },
+                { title: "Support",       url: "/guest/support",  icon: LifeBuoy,   role: "guest", permissionKey: "access_guest_support" },
             ],
         },
         {
@@ -213,6 +218,7 @@ export const NAVIGATION_GROUPS: Record<string, NavGroup[]> = {
             items: [
                 { title: "Payments",      url: "/guest/payments", icon: CreditCard, role: "resident", permissionKey: "view_payments",      featureKey: "enablePaymentProcessing" },
                 { title: "Mess Schedule", url: "/guest/mess",     icon: Utensils,   role: "resident", permissionKey: "access_guest_mess",  featureKey: "enableMess" },
+                { title: "Leave Request", url: "/guest/leave",    icon: Plane,      role: "resident", permissionKey: "access_guest_support" },
                 { title: "Support",       url: "/guest/support",  icon: LifeBuoy,   role: "resident", permissionKey: "access_guest_support" },
             ],
         },
@@ -237,8 +243,9 @@ export const NAVIGATION_GROUPS: Record<string, NavGroup[]> = {
             title: "Account",
             icon: User,
             items: [
-                { title: "My Salary",  url: "/staff/salary",  icon: DollarSign, role: "staff", permissionKey: "access_staff_salary" },
-                { title: "My Profile", url: "/staff/profile", icon: User,       role: "staff" },
+                { title: "My Salary",     url: "/staff/salary",       icon: DollarSign, role: "staff", permissionKey: "access_staff_salary" },
+                { title: "Leave Request", url: "/staff/leave-request", icon: Plane,      role: "staff" },
+                { title: "My Profile",    url: "/staff/profile",       icon: User,       role: "staff" },
             ],
         },
     ],

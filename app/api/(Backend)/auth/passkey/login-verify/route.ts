@@ -110,6 +110,7 @@ export async function POST(request: NextRequest) {
             name: user.name,
             role: user.role,
             hostelId: user.hostelId,
+            tenantId: user.tenantId,
         })
             .setProtectedHeader({ alg: "HS256" })
             .setIssuedAt()
@@ -130,6 +131,7 @@ export async function POST(request: NextRequest) {
                 device: userAgent,
                 ipAddress,
                 expiresAt,
+                tenantId: "", // Injected at runtime by Prisma client extension
             },
         });
 

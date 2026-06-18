@@ -3,6 +3,8 @@ import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import RoomServices from "../../../../../lib/services/roomservices/roomservices";
 import { errorResponse } from '@/lib/apiResponse';
+import { canAddRoom } from '@/lib/limits';
+import { getCurrentTenantId } from '@/lib/tenant';
 
 export async function POST(req) {
     const auth = await requireAuth();
@@ -10,6 +12,22 @@ export async function POST(req) {
 
     try {
         const body = await req.json();
+
+        // ── Plan limit check ─────────────────────────────────────────────────
+        const tenantId = await getCurrentTenantId();
+        if (tenantId) {
+            const limitCheck = await canAddRoom(tenantId);
+            if (!limitCheck.allowed) {
+                return NextResponse.json({
+                    success: false,
+                    error: `Room limit reached. Your ${limitCheck.plan} plan allows up to ${limitCheck.max} rooms (currently ${limitCheck.current}). Please upgrade your plan.`,
+                    limitExceeded: true,
+                    current: limitCheck.current,
+                    max: limitCheck.max,
+                    plan: limitCheck.plan,
+                }, { status: 403 });
+            }
+        }
 
         // Security: Wardens can ONLY create rooms in their assigned hostel
         if (auth.user.role === 'WARDEN') {

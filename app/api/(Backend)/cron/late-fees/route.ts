@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
         const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
         const currentMonthName = monthNames[monthIndex];
 
-        // ── 3. Find Overdue Payments ─────────────────────────────────────────
+        // ── 3. Find Overdue Payments (queries globally since no x-tenant-id header in cron context) ──
         const overduePayments = await prisma.payment.findMany({
             where: {
                 type: "MONTHLY_RENT",
@@ -37,76 +37,104 @@ export async function GET(request: NextRequest) {
             include: { User: true }
         });
 
-        const logs: any[] = [];
-        let generatedCount = 0;
-
-        // ── 4. Generate Late Fees ────────────────────────────────────────────
+        // Group overdue payments by tenantId
+        const paymentsByTenant: Record<string, typeof overduePayments> = {};
         for (const payment of overduePayments) {
-            // Check if a late fee was already generated for this specific rent payment
-            const existingLateFee = await prisma.payment.findFirst({
-                where: {
-                    userId: payment.userId,
-                    bookingId: payment.bookingId,
-                    type: "LATE_FEE",
-                    month: currentMonthName,
-                    year: year
-                }
-            });
+            if (!paymentsByTenant[payment.tenantId]) {
+                paymentsByTenant[payment.tenantId] = [];
+            }
+            paymentsByTenant[payment.tenantId].push(payment);
+        }
 
-            if (!existingLateFee) {
-                // Update original payment status to OVERDUE
-                await prisma.payment.update({
-                    where: { id: payment.id },
-                    data: { status: "OVERDUE" }
-                });
+        let totalGeneratedCount = 0;
 
-                // Create new late fee payment
-                await prisma.payment.create({
-                    data: {
+        // ── 4. Generate Late Fees per Tenant ──────────────────────────────────
+        for (const [tenantId, tenantPayments] of Object.entries(paymentsByTenant)) {
+            const logs: any[] = [];
+            let generatedCount = 0;
+
+            for (const payment of tenantPayments) {
+                // Check if a late fee was already generated for this specific rent payment
+                const existingLateFee = await prisma.payment.findFirst({
+                    where: {
+                        tenantId: tenantId,
                         userId: payment.userId,
                         bookingId: payment.bookingId,
-                        amount: LATE_FEE_AMOUNT,
                         type: "LATE_FEE",
-                        status: "PENDING",
                         month: currentMonthName,
-                        year: year,
-                        notes: `Late fee for overdue ${currentMonthName} ${year} rent`
+                        year: year
                     }
                 });
 
-                logs.push({ userId: payment.userId, email: payment.User.email, originalPaymentId: payment.id });
-                generatedCount++;
+                if (!existingLateFee) {
+                    // Update original payment status to OVERDUE
+                    await prisma.payment.update({
+                        where: { id: payment.id },
+                        data: { status: "OVERDUE" }
+                    });
+
+                    // Create new late fee payment
+                    await prisma.payment.create({
+                        data: {
+                            tenantId: tenantId,
+                            userId: payment.userId,
+                            bookingId: payment.bookingId,
+                            amount: LATE_FEE_AMOUNT,
+                            type: "LATE_FEE",
+                            status: "PENDING",
+                            month: currentMonthName,
+                            year: year,
+                            notes: `Late fee for overdue ${currentMonthName} ${year} rent`
+                        }
+                    });
+
+                    logs.push({ userId: payment.userId, email: payment.User.email, originalPaymentId: payment.id });
+                    generatedCount++;
+                    totalGeneratedCount++;
+                }
+            }
+
+            // Save Billing Log for this tenant
+            if (generatedCount > 0) {
+                await prisma.billingLog.create({
+                    data: {
+                        tenantId: tenantId,
+                        month: monthIndex + 1,
+                        year: year,
+                        type: "LATE_FEES",
+                        status: "SUCCESS",
+                        logs: JSON.stringify({ generatedCount, details: logs })
+                    }
+                });
             }
         }
 
-        // ── 5. Save Billing Log ──────────────────────────────────────────────
-        await prisma.billingLog.create({
-            data: {
-                month: monthIndex + 1,
-                year: year,
-                type: "LATE_FEES",
-                status: "SUCCESS",
-                logs: JSON.stringify({ generatedCount, details: logs })
-            }
-        });
-
         return successResponse({
-            message: `Successfully generated ${generatedCount} late fees for ${currentMonthName} ${year}`,
-            generatedCount
+            message: `Successfully generated ${totalGeneratedCount} late fees for ${currentMonthName} ${year}`,
+            generatedCount: totalGeneratedCount
         });
 
     } catch (error: any) {
         console.error("[CRON] /api/cron/late-fees - Error:", error);
 
-        await prisma.billingLog.create({
-            data: {
-                month: new Date().getMonth() + 1,
-                year: new Date().getFullYear(),
-                type: "LATE_FEES",
-                status: "FAILED",
-                logs: JSON.stringify({ error: error.message || "Unknown error" })
+        // Fetch all active tenants to log the failure if possible
+        try {
+            const tenants = await prisma.tenant.findMany({ where: { isActive: true } });
+            for (const t of tenants) {
+                await prisma.billingLog.create({
+                    data: {
+                        tenantId: t.id,
+                        month: new Date().getMonth() + 1,
+                        year: new Date().getFullYear(),
+                        type: "LATE_FEES",
+                        status: "FAILED",
+                        logs: JSON.stringify({ error: error.message || "Unknown error" })
+                    }
+                });
             }
-        });
+        } catch (dbErr) {
+            console.error("[CRON] /api/cron/late-fees - Failed to write error billing logs:", dbErr);
+        }
 
         return errorResponse("Failed to process late fees.", 500);
     }

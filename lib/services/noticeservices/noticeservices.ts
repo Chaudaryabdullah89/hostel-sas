@@ -70,6 +70,7 @@ class NoticeService {
                     hostelId: (hostelId === 'all' || !hostelId) ? null : hostelId,
                     expiresAt: expiresAt ? new Date(expiresAt) : null,
                     targetRoles: targetRoles || [],
+                    tenantId: "", // Injected at runtime by Prisma client extension
                     updatedAt: new Date()
                 }
             });

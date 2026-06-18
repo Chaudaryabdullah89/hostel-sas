@@ -60,6 +60,7 @@ export async function POST(request: NextRequest) {
                 counter: BigInt(regCredential.counter),
                 deviceName: resolvedName,
                 transports: credential.response?.transports || [],
+                tenantId: "", // Injected at runtime by Prisma client extension
             },
         });
 

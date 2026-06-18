@@ -3,6 +3,8 @@ import { requireAuth } from "@/lib/apiAuth";
 import { errorResponse } from "@/lib/apiResponse";
 import { getRelevantContext, DEFAULT_SYSTEM_PROMPT } from "@/lib/ragContext";
 import { NextResponse } from "next/server";
+import { getCurrentTenantId } from "@/lib/tenant";
+import { canUseAI } from "@/lib/limits";
 
 /**
  * POST /api/ai/chat
@@ -13,6 +15,21 @@ import { NextResponse } from "next/server";
 export async function POST(request) {
   const auth = await requireAuth();
   if (!auth.success) return errorResponse(auth.error, auth.status);
+
+  // ── Plan limit check ─────────────────────────────────────────────────
+  try {
+    const tenantId = await getCurrentTenantId();
+    if (tenantId) {
+      const allowed = await canUseAI(tenantId);
+      if (!allowed) {
+        return NextResponse.json({
+          success: false,
+          message: "AI Assistant is not available on your plan. Please upgrade to a higher plan to enable AI features.",
+          limitExceeded: true
+        }, { status: 403 });
+      }
+    }
+  } catch {}
 
   try {
     const body = await request.json();

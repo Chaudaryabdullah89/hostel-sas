@@ -95,6 +95,7 @@ export default class RoomServices {
                     images: data.images || [],
                     cleaningInterval: data.cleaningInterval ? parseInt(String(data.cleaningInterval)) : 24,
                     laundryInterval: data.laundryInterval ? parseInt(String(data.laundryInterval)) : 48,
+                    tenantId: "", // Injected at runtime by Prisma client extension
                     updatedAt: new Date()
                 }
             });
@@ -141,7 +142,8 @@ export default class RoomServices {
                                 hostelId: room.hostelId,
                                 status: "COMPLETED",
                                 notes: "Cleaning (Auto-logged)",
-                                performedAt: now
+                                performedAt: now,
+                                tenantId: "", // Injected at runtime by Prisma client extension
                             }
                         }),
                         prisma.room.update({
@@ -165,7 +167,8 @@ export default class RoomServices {
                                 status: "COMPLETED",
                                 notes: "Laundry (Auto-logged)",
                                 receivedAt: now,
-                                itemsCount: 0
+                                itemsCount: 0,
+                                tenantId: "", // Injected at runtime by Prisma client extension
                             }
                         }),
                         prisma.room.update({
@@ -377,7 +380,8 @@ export default class RoomServices {
                         hostelId: data.hostelId,
                         status: data.status || "COMPLETED",
                         notes: data.notes,
-                        performedAt: data.performedAt ? new Date(data.performedAt) : new Date()
+                        performedAt: data.performedAt ? new Date(data.performedAt) : new Date(),
+                        tenantId: "", // Injected at runtime by Prisma client extension
                     }
                 }),
                 ...(isCompleted ? [
@@ -408,7 +412,8 @@ export default class RoomServices {
                         itemsCount: parseInt(data.itemsCount || 0),
                         status: status,
                         notes: data.notes,
-                        receivedAt: data.receivedAt ? new Date(data.receivedAt) : new Date()
+                        receivedAt: data.receivedAt ? new Date(data.receivedAt) : new Date(),
+                        tenantId: "", // Injected at runtime by Prisma client extension
                     }
                 }),
                 ...(shiftsCounter ? [

@@ -61,10 +61,8 @@ export default class AuthService {
             const { name, email, password, phone, role } = data;
 
 
-            const existingUser = await prisma.user.findUnique({
-                where: {
-                    email: email
-                }
+            const existingUser = await prisma.user.findFirst({
+                where: { email }
             });
 
             if (existingUser) {
@@ -95,6 +93,7 @@ export default class AuthService {
                     role: userRole as any,
                     uid,
                     regNumber,
+                    tenantId: "", // Injected at runtime by Prisma client extension
                     updatedAt: new Date(),
                 },
             });
@@ -106,6 +105,7 @@ export default class AuthService {
                     name: user.name,
                     role: user.role,
                     hostelId: user.hostelId,
+                    tenantId: user.tenantId,
                 })
                 .setProtectedHeader({ alg: "HS256" })
                 .setIssuedAt()
@@ -143,11 +143,11 @@ export default class AuthService {
             const { email, password, ipAddress, userAgent } = data;
 
 
-            const user = await prisma.user.findUnique({
-                where: {
-                    email: email
-                }
+            const user = await prisma.user.findFirst({
+                where: { email }
             });
+
+            console.log("[AuthServices] login search result for email:", email, "user:", user ? { id: user.id, email: user.email, tenantId: user.tenantId } : null);
 
             if (!user) {
                 return {
@@ -216,6 +216,7 @@ export default class AuthService {
                     name: user.name,
                     role: user.role,
                     hostelId: user.hostelId,
+                    tenantId: user.tenantId,
                 })
                 .setProtectedHeader({ alg: "HS256" })
                 .setIssuedAt()
@@ -230,6 +231,7 @@ export default class AuthService {
                 data: {
                     id: randomUUID(),
                     userId: user.id,
+                    tenantId: user.tenantId,
                     token,
                     device: userAgent || "Unknown Device",
                     ipAddress: ipAddress || "Unknown IP",
@@ -345,6 +347,7 @@ export default class AuthService {
                 name: user.name,
                 role: user.role,
                 hostelId: user.hostelId,
+                tenantId: user.tenantId,
             })
             .setProtectedHeader({ alg: "HS256" })
             .setIssuedAt()
@@ -358,6 +361,7 @@ export default class AuthService {
                 data: {
                     id: randomUUID(),
                     userId: user.id,
+                    tenantId: user.tenantId,
                     token,
                     device: userAgent || "Unknown Device",
                     ipAddress: ipAddress || "Unknown IP",

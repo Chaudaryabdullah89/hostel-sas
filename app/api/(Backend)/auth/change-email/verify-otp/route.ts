@@ -29,7 +29,7 @@ export async function POST(req: Request) {
         }
 
         // Check if email is already taken
-        const existingUser = await prisma.user.findUnique({ where: { email } });
+        const existingUser = await prisma.user.findFirst({ where: { email } });
         if (existingUser) {
             console.warn(`[API] POST /api/auth/change-email/verify-otp - Email already taken: ${email}`);
             return NextResponse.json({ message: "Email is already in use" }, { status: 400 });

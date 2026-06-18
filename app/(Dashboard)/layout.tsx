@@ -159,6 +159,16 @@ export default function RootLayout({
       ["CONFIRMED", "CHECKED_IN", "PENDING"].includes(b.status)
     )
 
+  if (pathname === "/admin/onboarding") {
+    return (
+      <main className="min-h-screen w-full bg-slate-950">
+        <PageContent user={user} isAuthLoading={isAuthLoading}>
+          {children}
+        </PageContent>
+      </main>
+    )
+  }
+
   return (
     <>
       <SidebarProvider>

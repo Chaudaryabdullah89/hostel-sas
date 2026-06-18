@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
         let challengeKey = "passkey-login-anonymous";
 
         if (email) {
-            const user = await prisma.user.findUnique({
+            const user = await prisma.user.findFirst({
                 where: { email },
                 include: { webauthnCredentials: true },
             });
