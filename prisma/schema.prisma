@@ -1,0 +1,910 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = []
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+
+model Tenant {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  plan        String   @default("starter")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  // Relations
+  users             User[]
+  hostels           Hostel[]
+  rooms             Room[]
+  bookings          Booking[]
+  complaints        Complaint[]
+  expenses          Expense[]
+  messMenus         MessMenu[]
+  notices           Notice[]
+  payments          Payment[]
+  residentProfiles  ResidentProfile[]
+  salaries          Salary[]
+  sessions          Session[]
+  staffProfiles     StaffProfile[]
+  webauthnCreds     WebAuthnCredential[]
+  maintenance       Maintenance[]
+  resetPasswords    ResetPassword[]
+  chatMessages      ChatMessage[]
+  cleaningLogs      CleaningLog[]
+  laundryLogs       LaundryLog[]
+  wardenPayments    WardenPayment[]
+  staffTasks        StaffTask[]
+  taskComments      TaskComment[]
+  refundRequests    RefundRequest[]
+  complaintComments ComplaintComment[]
+  systemSettings    SystemSettings[]
+  rolePermissions   RolePermission[]
+  messFeedbacks     MessFeedback[]
+  roomSwapRequests  RoomSwapRequest[]
+  inventoryItems    InventoryItem[]
+  subscriptions     Subscription[]
+  billingLogs       BillingLog[]
+}
+
+model Subscription {
+  id          String   @id @default(cuid())
+  tenantId    String   @unique
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  plan        String   // "starter", "growth", "enterprise"
+  status      String   // "active", "pending", "expired"
+  paidUntil   DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+
+model Booking {
+  id              String        @id @default(cuid())
+  userId          String
+  roomId          String
+  checkIn         DateTime
+  checkOut        DateTime?
+  status          BookingStatus @default(PENDING)
+  totalAmount     Decimal       @db.Decimal(12, 2)
+  securityDeposit Decimal       @default(0) @db.Decimal(12, 2)
+  monthlyRent     Decimal?      @default(0) @db.Decimal(12, 2)
+  uid             String?       @unique
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  Room            Room          @relation(fields: [roomId], references: [id])
+  User            User          @relation(fields: [userId], references: [id])
+  Payment         Payment[]
+
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  @@index([tenantId])
+  @@index([userId])
+  @@index([roomId])
+}
+
+model Complaint {
+  id                                String             @id @default(cuid())
+  userId                            String
+  hostelId                          String
+  roomNumber                        String?
+  title                             String
+  description                       String
+  category                          ComplaintCategory
+  priority                          ComplaintPriority  @default(MEDIUM)
+  status                            ComplaintStatus    @default(PENDING)
+  assignedToId                      String?
+  resolutionNotes                   String?
+  resolvedAt                        DateTime?
+  images                            String[]
+  uid                               String?            @unique
+  createdAt                         DateTime           @default(now())
+  updatedAt                         DateTime           @updatedAt
+  User_Complaint_assignedToIdToUser User?              @relation("Complaint_assignedToIdToUser", fields: [assignedToId], references: [id])
+  Hostel                            Hostel             @relation(fields: [hostelId], references: [id])
+  User_Complaint_userIdToUser       User               @relation("Complaint_userIdToUser", fields: [userId], references: [id])
+  comments                          ComplaintComment[]
+
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  @@index([tenantId])
+  @@index([userId])
+  @@index([hostelId])
+  @@index([assignedToId])
+}
+
+model Expense {
+  id                               String          @id @default(cuid())
+  hostelId                         String
+  title                            String
+  description                      String?
+  amount                           Decimal         @db.Decimal(12, 2)
+  date                             DateTime        @default(now())
+  category                         ExpenseCategory
+  status                           ExpenseStatus   @default(PENDING)
+  receiptUrl                       String?
+  submittedById                    String
+  approvedById                     String?
+  createdAt                        DateTime        @default(now())
+  updatedAt                        DateTime        @updatedAt
+  rejectedById                     String?
+  userId                           String?
+  User_Expense_approvedByIdToUser  User?           @relation("Expense_approvedByIdToUser", fields: [approvedById], references: [id])
+  Hostel                           Hostel          @relation(fields: [hostelId], references: [id])
+  User_Expense_rejectedByIdToUser  User?           @relation("Expense_rejectedByIdToUser", fields: [rejectedById], references: [id])
+  User_Expense_submittedByIdToUser User            @relation("Expense_submittedByIdToUser", fields: [submittedById], references: [id])
+  User_Expense_userIdToUser        User?           @relation("Expense_userIdToUser", fields: [userId], references: [id])
+
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  @@index([tenantId])
+  @@index([hostelId])
+  @@index([submittedById])
+  @@index([approvedById])
+  @@index([rejectedById])
+  @@index([userId])
+}
+
+model Hostel {
+  id                          String          @id @default(cuid())
+  name                        String
+  type                        HostelType      @default(BOYS)
+  address                     String
+  city                        String
+  state                       String?
+  country                     String          @default("Pakistan")
+  phone                       String?
+  email                       String?
+  description                 String?
+  floors                      Int             @default(1)
+  amenities                   String[]
+  images                      String[]
+  managerId                   String?
+  createdAt                   DateTime        @default(now())
+  updatedAt                   DateTime        @updatedAt
+  completeaddress             String?
+  laundaryavailable           Boolean?        @default(false) @map("laundryavailable")
+  messavailable               Boolean?        @default(false)
+  montlyrent                  Decimal?        @db.Decimal(12, 2) @map("monthlyrent")
+  pernightrent                Decimal?        @db.Decimal(12, 2) @map("pernightrent")
+  status                      String?         @default("ACTIVE")
+  totalRooms                  Int?            @default(0)
+  wardens                     String[]
+  zip                         String?
+  cleaningLogs                CleaningLog[]
+  Complaint                   Complaint[]
+  Expense                     Expense[]
+  User_Hostel_managerIdToUser User?           @relation("Hostel_managerIdToUser", fields: [managerId], references: [id])
+  laundryLogs                 LaundryLog[]
+  MessMenu                    MessMenu[]
+  Notice                      Notice[]
+  RefundRequest               RefundRequest[]
+  Room                        Room[]
+  staffTasks                  StaffTask[]
+  User_User_hostelIdToHostel  User[]          @relation("User_hostelIdToHostel")
+  Maintenance                 Maintenance[]
+  messFeedback                MessFeedback[]
+  inventoryItems              InventoryItem[]
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  @@index([tenantId])
+}
+
+model MessMenu {
+  id            String   @id @default(cuid())
+  hostelId      String
+  dayOfWeek     String
+  breakfast     String?
+  breakfastTime String?
+  lunch         String?
+  lunchTime     String?
+  dinner        String?
+  dinnerTime    String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  Hostel        Hostel   @relation(fields: [hostelId], references: [id], onDelete: Cascade)
+
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  @@unique([hostelId, dayOfWeek], name: "hostelId_dayOfWeek")
+  @@index([tenantId])
+}
+
+model Notice {
+  id          String    @id @default(cuid())
+  title       String
+  content     String
+  priority    String    @default("MEDIUM")
+  category    String    @default("GENERAL")
+  targetRoles String[]
+  hostelId    String?
+  authorId    String
+  isActive    Boolean   @default(true)
+  expiresAt   DateTime?
+  uid         String?   @unique
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  author      User      @relation(fields: [authorId], references: [id])
+  hostel      Hostel?   @relation(fields: [hostelId], references: [id])
+
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  @@index([tenantId])
+  @@index([authorId])
+  @@index([hostelId])
+}
+
+model OtpVerification {
+  id        String   @id
+  email     String
+  otp       String
+  expiresAt DateTime
+  type      String   @default("EMAIL_UPDATE")
+  createdAt DateTime @default(now())
+}
+
+model Payment {
+  id            String          @id @default(cuid())
+  userId        String
+  bookingId     String?
+  amount        Decimal       @db.Decimal(12, 2)
+  date          DateTime        @default(now())
+  dueDate       DateTime?
+  type          String
+  status        PaymentStatus   @default(PENDING)
+  method        PaymentMethod   @default(CASH)
+  transactionId String?
+  receiptUrl    String?
+  notes         String?
+  month         String?
+  year          Int?
+  uid           String?         @unique
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  Booking       Booking?        @relation(fields: [bookingId], references: [id])
+  User          User            @relation(fields: [userId], references: [id])
+  RefundRequest RefundRequest[]
+
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  @@index([tenantId])
+  @@index([userId])
+  @@index([bookingId])
+}
+
+model ResidentProfile {
+  id               String  @id @default(cuid())
+  userId           String  @unique
+  guardianName     String?
+  guardianPhone    String?
+  emergencyContact String?
+  address          String?
+  city             String?
+  currentHostelId  String?
+  currentRoomId    String?
+  documents        Json?
+  lifestyle        Json?
+  User             User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  @@index([tenantId])
+}
+
+model Room {
+  id               String        @id @default(cuid())
+  hostelId         String
+  roomNumber       String
+  floor            Int
+  type             RoomType      @default(TRIPLE)
+  capacity         Int           @default(3)
+  price            Decimal       @db.Decimal(12, 2)
+  status           RoomStatus    @default(AVAILABLE)
+  amenities        String[]
+  images           String[]
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  lastCleaningAt   DateTime?
+  lastLaundryAt    DateTime?
+  cleaningInterval Int?          @default(24)
+  laundryInterval  Int?          @default(48)
+  montlyrent       Decimal?      @db.Decimal(12, 2) @map("monthlyrent")
+  pernightrent     Decimal?      @db.Decimal(12, 2) @map("pernightrent")
+  Booking          Booking[]
+  CleaningLog      CleaningLog[]
+  LaundryLog       LaundryLog[]
+  Hostel           Hostel        @relation(fields: [hostelId], references: [id], onDelete: Cascade)
+  Maintenance      Maintenance[]
+  fromSwaps        RoomSwapRequest[] @relation("FromRoom")
+  toSwaps          RoomSwapRequest[] @relation("ToRoom")
+
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  @@index([tenantId])
+  @@index([hostelId])
+  @@unique([hostelId, roomNumber])
+}
+
+model Salary {
+  id             String         @id @default(cuid())
+  staffProfileId String
+  month          String
+  amount         Decimal        @db.Decimal(12, 2)
+  basicSalary    Decimal        @db.Decimal(12, 2)
+  allowances     Decimal        @default(0) @db.Decimal(12, 2)
+  bonuses        Decimal        @default(0) @db.Decimal(12, 2)
+  deductions     Decimal        @default(0) @db.Decimal(12, 2)
+  status         PaymentStatus  @default(PENDING)
+  paymentDate    DateTime?
+  paymentMethod  PaymentMethod?
+  notes          String?
+  uid            String?        @unique
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  StaffProfile   StaffProfile   @relation(fields: [staffProfileId], references: [id])
+
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  @@index([tenantId])
+  @@index([staffProfileId])
+}
+
+model Session {
+  id         String    @id @default(cuid())
+  userId     String
+  token      String?   @unique
+  device     String?
+  ipAddress  String?
+  lastActive DateTime  @default(now())
+  expiresAt  DateTime?
+  isActive   Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  User       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  @@index([tenantId])
+  @@index([userId])
+}
+
+model StaffProfile {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  designation String
+  department  String?
+  shift       String?
+  basicSalary Decimal  @default(0) @db.Decimal(12, 2)
+  allowances  Decimal  @default(0) @db.Decimal(12, 2)
+  joiningDate DateTime @default(now())
+  documents   Json?
+  Salary      Salary[]
+  User        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  @@index([tenantId])
+}
+
+model User {
+  id                                     String             @id @default(cuid())
+  name                                   String
+  email                                  String             
+  password                               String
+  uid                                    String?            @unique
+  createdAt                              DateTime           @default(now())
+  updatedAt                              DateTime           @updatedAt
+  cnic                                   String?
+  image                                  String?
+  isActive                               Boolean            @default(true)
+  phone                                  String?
+  role                                   UserRole           @default(GUEST)
+  address                                String?
+  lastLogin                              DateTime?
+  city                                   String?
+  hostelId                               String?
+  basicSalary                            Decimal            @default(0) @db.Decimal(12, 2)
+  allowances                             Decimal            @default(0) @db.Decimal(12, 2)
+  wardens                                String[]
+  regNumber                              String?            @unique
+  twoFactorSecret                        String?
+  twoFactorEnabled                       Boolean            @default(false)
+  twoFactorMethod                        String?            // TOTP, EMAIL, BACKUP_CODES, PASSKEY
+  backupCodes                            String[]           // Hashed one-time backup codes
+  canManageExpenses                      Boolean            @default(false)
+  canManageGeneral                       Boolean            @default(false)
+  canManageMaintenance                   Boolean            @default(false)
+  canManageMess                          Boolean            @default(false)
+  canManageSalaries                      Boolean            @default(false)
+  canManageUtilities                     Boolean            @default(false)
+  Booking                                Booking[]
+  chatMessages                           ChatMessage[]
+  Complaint_Complaint_assignedToIdToUser Complaint[]        @relation("Complaint_assignedToIdToUser")
+  Complaint_Complaint_userIdToUser       Complaint[]        @relation("Complaint_userIdToUser")
+  complaintComments                      ComplaintComment[]
+  Expense_Expense_approvedByIdToUser     Expense[]          @relation("Expense_approvedByIdToUser")
+  Expense_Expense_rejectedByIdToUser     Expense[]          @relation("Expense_rejectedByIdToUser")
+  Expense_Expense_submittedByIdToUser    Expense[]          @relation("Expense_submittedByIdToUser")
+  Expense_Expense_userIdToUser           Expense[]          @relation("Expense_userIdToUser")
+  Hostel_Hostel_managerIdToUser          Hostel[]           @relation("Hostel_managerIdToUser")
+  Notice                                 Notice[]
+  Payment                                Payment[]
+  RefundRequest                          RefundRequest[]
+  ResidentProfile                        ResidentProfile?
+  Session                                Session[]
+  StaffProfile                           StaffProfile?
+  assignedTasks                          StaffTask[]        @relation("Task_AssignedTo")
+  createdTasks                           StaffTask[]        @relation("Task_CreatedBy")
+  taskComments                           TaskComment[]
+  Hostel_User_hostelIdToHostel           Hostel?            @relation("User_hostelIdToHostel", fields: [hostelId], references: [id])
+  WardenPayment                          WardenPayment[]
+  Maintenance_assignedToIdToUser         Maintenance[]      @relation("Maintenance_assignedToIdToUser")
+  Maintenance_userIdToUser               Maintenance[]      @relation("Maintenance_userIdToUser")
+  messFeedback                           MessFeedback[]
+  roomSwaps                              RoomSwapRequest[]
+  webauthnCredentials                    WebAuthnCredential[]
+
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  @@index([tenantId])
+  @@index([hostelId])
+  @@unique([tenantId, email])
+}
+
+model WebAuthnCredential {
+  id                  String   @id @default(cuid())
+  userId              String
+  credentialId        String   @unique // base64url encoded credential ID
+  publicKey           String   // base64url encoded public key
+  counter             BigInt   @default(0)
+  deviceName          String?  // e.g. "Touch ID on MacBook", "YubiKey"
+  transports          String[] // e.g. ["internal", "usb"]
+  createdAt           DateTime @default(now())
+  User                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  @@index([tenantId])
+  @@index([userId])
+}
+
+model Maintenance {
+  id              String    @id @default(cuid())
+  hostelId        String
+  title           String
+  description     String?
+  status          String    @default("PENDING")
+  assignedToId    String?
+  resolutionNotes String?
+  resolvedAt      DateTime?
+  images          String[]
+  partsUsed       Json?     // Used inventory items: [{ itemId: string, quantity: number }]
+  uid             String?   @unique
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  userId          String?
+  roomId          String?
+  AssignedTo      User?     @relation("Maintenance_assignedToIdToUser", fields: [assignedToId], references: [id])
+  Hostel          Hostel    @relation(fields: [hostelId], references: [id])
+  Room            Room?     @relation(fields: [roomId], references: [id])
+  User            User?     @relation("Maintenance_userIdToUser", fields: [userId], references: [id])
+
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  @@index([tenantId])
+  @@index([hostelId])
+  @@index([assignedToId])
+  @@index([userId])
+  @@index([roomId])
+  @@map("maintenance")
+}
+
+model ResetPassword {
+  id        String   @id
+  email     String   @unique
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  userId    String   @unique
+
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  @@index([tenantId])
+  @@index([email])
+  @@map("resetPassword")
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  userId    String
+  role      String
+  content   String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  @@index([tenantId])
+}
+
+model CleaningLog {
+  id          String   @id @default(cuid())
+  roomId      String
+  hostelId    String
+  status      String   @default("COMPLETED")
+  notes       String?
+  performedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+  Hostel      Hostel   @relation(fields: [hostelId], references: [id], onDelete: Cascade)
+  Room        Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  @@index([tenantId])
+  @@index([roomId])
+  @@index([hostelId])
+}
+
+model LaundryLog {
+  id          String    @id @default(cuid())
+  roomId      String
+  hostelId    String
+  itemsCount  Int       @default(0)
+  status      String    @default("PENDING")
+  notes       String?
+  receivedAt  DateTime  @default(now())
+  createdAt   DateTime  @default(now())
+  deliveredAt DateTime?
+  Hostel      Hostel    @relation(fields: [hostelId], references: [id], onDelete: Cascade)
+  Room        Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  @@index([tenantId])
+  @@index([roomId])
+  @@index([hostelId])
+}
+
+model WardenPayment {
+  id            String   @id @default(cuid())
+  wardenId      String
+  amount        Decimal  @db.Decimal(12, 2)
+  basicSalary   Decimal  @db.Decimal(12, 2)
+  bonuses       Decimal  @default(0) @db.Decimal(12, 2)
+  deductions    Decimal  @default(0) @db.Decimal(12, 2)
+  month         String
+  paymentMethod String   @default("BANK_TRANSFER")
+  paymentDate   DateTime @default(now())
+  notes         String?
+  status        String   @default("PAID")
+  type          String   @default("WARDEN_SALARY")
+  uid           String?  @unique
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  Warden        User     @relation(fields: [wardenId], references: [id])
+
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  @@index([tenantId])
+  @@index([wardenId])
+}
+
+model StaffTask {
+  id           String        @id @default(cuid())
+  uid          String?       @unique
+  title        String
+  description  String?
+  status       TaskStatus    @default(PENDING)
+  priority     TaskPriority  @default(MEDIUM)
+  category     String?       @default("GENERAL")
+  hostelId     String
+  assignedToId String?
+  createdById  String
+  dueDate      DateTime?
+  completedAt  DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  assignedTo   User?         @relation("Task_AssignedTo", fields: [assignedToId], references: [id])
+  createdBy    User          @relation("Task_CreatedBy", fields: [createdById], references: [id])
+  hostel       Hostel        @relation(fields: [hostelId], references: [id])
+  comments     TaskComment[]
+
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  @@index([tenantId])
+  @@index([hostelId])
+  @@index([assignedToId])
+  @@index([createdById])
+}
+
+model TaskComment {
+  id        String    @id @default(cuid())
+  taskId    String
+  userId    String
+  message   String
+  createdAt DateTime  @default(now())
+  Task      StaffTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  User      User      @relation(fields: [userId], references: [id])
+
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  @@index([tenantId])
+  @@index([taskId])
+  @@index([userId])
+}
+
+model RefundRequest {
+  id        String   @id @default(cuid())
+  paymentId String
+  userId    String
+  hostelId  String
+  reason    String
+  amount    Decimal  @db.Decimal(12, 2)
+  status    String   @default("PENDING")
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  Hostel    Hostel   @relation(fields: [hostelId], references: [id])
+  Payment   Payment  @relation(fields: [paymentId], references: [id])
+  User      User     @relation(fields: [userId], references: [id])
+
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  @@index([tenantId])
+  @@index([paymentId])
+  @@index([userId])
+  @@index([hostelId])
+}
+
+model ComplaintComment {
+  id          String    @id @default(cuid())
+  complaintId String
+  userId      String
+  message     String
+  createdAt   DateTime  @default(now())
+  Complaint   Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  User        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  @@index([tenantId])
+  @@index([complaintId])
+  @@index([userId])
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+  REJECTED
+  CHECKED_IN
+  CHECKED_OUT
+}
+
+enum ComplaintCategory {
+  MAINTENANCE
+  CLEANLINESS
+  NOISE
+  SECURITY
+  INTERNET
+  OTHER
+  ELECTRICAL
+  PLUMBING
+  MESS
+  BEHAVIOR
+}
+
+enum ComplaintPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum ComplaintStatus {
+  PENDING
+  IN_PROGRESS
+  RESOLVED
+  REJECTED
+}
+
+enum ExpenseCategory {
+  MESS
+  GENERAL
+  UTILITY_BILL
+  MAINTENANCE
+  SALARY
+}
+
+enum ExpenseStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  PAID
+}
+
+enum HostelType {
+  BOYS
+  GIRLS
+  MIXED
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  ONLINE
+  CHEQUE
+  OTHER
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  OVERDUE
+  PARTIAL
+  FAILED
+  REFUNDED
+  REJECTED
+}
+
+enum RoomStatus {
+  AVAILABLE
+  OCCUPIED
+  MAINTENANCE
+  CLEANING
+}
+
+enum RoomType {
+  SINGLE
+  DOUBLE
+  TRIPLE
+  DORMITORY
+}
+
+enum UserRole {
+  ADMIN
+  WARDEN
+  STAFF
+  RESIDENT
+  GUEST
+}
+
+model SystemSettings {
+  id String @id @default(cuid())
+
+  // Maintenance
+  maintenanceMode    Boolean @default(false)
+  maintenanceMessage String?
+
+  // Core Application Services
+  enableLaundry             Boolean @default(true)
+  enableMess                Boolean @default(true)
+  enableGuestBookings       Boolean @default(true)
+  enableComplaintsSystem    Boolean @default(true)
+  enableMaintenanceRequests Boolean @default(true)
+  enableRefundRequests      Boolean @default(true)
+  enableNoticeBoard         Boolean @default(true)
+  enableAiAssistant         Boolean @default(true)
+  enablePaymentProcessing   Boolean @default(true)
+  autoGenerateRentInvoices  Boolean @default(true)
+  autoGenerateStaffSalaries Boolean @default(true)
+
+  // Email / Notification Services
+  enableEmailService        Boolean   @default(true)
+  enablePasswordResetEmails Boolean   @default(true)
+  enableBookingEmails       Boolean   @default(true)
+  enablePaymentEmails       Boolean   @default(true)
+  enableComplaintEmails     Boolean   @default(true)
+  enableNoticeEmails        Boolean   @default(true)
+  enableWelcomeEmails       Boolean   @default(true)
+
+  // Branding
+  companyName      String? @default("Hostel Management System")
+  companyShortName String? @default("HMS")
+
+  lastCronRun DateTime?
+  updatedAt   DateTime  @updatedAt
+  tenantId  String   @unique
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  @@index([tenantId])
+}
+
+model RolePermission {
+  id          String   @id @default(cuid())
+  role        UserRole 
+  permissions Json // Store mapping of specific permission keys (e.g., "manage_laundry": true)
+  updatedAt   DateTime @updatedAt
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  @@unique([tenantId, role])
+  @@index([tenantId])
+}
+
+model MessFeedback {
+  id        String   @id @default(cuid())
+  userId    String
+  hostelId  String
+  date      DateTime @default(now())
+  mealType  String   // BREAKFAST, LUNCH, DINNER
+  rating    Int      // 1 to 5
+  comments  String?
+  createdAt DateTime @default(now())
+  User      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  Hostel    Hostel   @relation(fields: [hostelId], references: [id], onDelete: Cascade)
+
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  @@index([tenantId])
+  @@index([userId])
+  @@index([hostelId])
+}
+
+model RoomSwapRequest {
+  id          String   @id @default(cuid())
+  userId      String
+  fromRoomId  String
+  toRoomId    String
+  reason      String
+  status      String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  User        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  FromRoom    Room     @relation("FromRoom", fields: [fromRoomId], references: [id], onDelete: Cascade)
+  ToRoom      Room     @relation("ToRoom", fields: [toRoomId], references: [id], onDelete: Cascade)
+
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  @@index([tenantId])
+  @@index([userId])
+  @@index([fromRoomId])
+  @@index([toRoomId])
+}
+
+model InventoryItem {
+  id           String    @id @default(cuid())
+  hostelId     String
+  itemName     String
+  category     String    @default("MESS") // MESS, MAINTENANCE, STATIONERY, OTHER
+  quantity     Float
+  unit         String
+  minThreshold Float     @default(10)
+  expiryDate   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  Hostel       Hostel    @relation(fields: [hostelId], references: [id], onDelete: Cascade)
+
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  @@index([tenantId])
+  @@index([hostelId])
+  @@map("MessInventory")
+}
+
+model BillingLog {
+  id          String   @id @default(cuid())
+  month       Int
+  year        Int
+  status      String   // "SUCCESS", "FAILED"
+  logs        String?  // JSON string detailing generated invoices or errors
+  type        String   @default("MONTHLY_RENT") // "MONTHLY_RENT", "LATE_FEES"
+  createdAt   DateTime @default(now())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  @@index([tenantId])
+}
+

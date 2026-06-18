@@ -1,0 +1,434 @@
+"use client";
+import React, { useState, useMemo } from "react";
+import { ListPageSkeleton } from "@/components/ui/skeletons";
+import Link from "next/link";
+import { format, formatDistanceToNow } from "date-fns";
+import {
+    Users, Search, ClipboardList, CheckCircle2, AlertCircle,
+    Clock, Zap, ChevronRight, UserCheck, Building2, Filter,
+    BarChart3, TrendingUp, Star, Flame, Activity, X,
+    UserPlus, ArrowUpRight, MapPin, Calendar, Download
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import {
+    Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
+    Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { useStaffList } from "@/hooks/useSalaries";
+import { useComplaints, useUpdateComplaint } from "@/hooks/usecomplaints";
+import { useHostel } from "@/hooks/usehostel";
+import { toast } from "sonner";
+
+const AdminStaffPage = () => {
+    const [searchQuery, setSearchQuery] = useState("");
+    const [selectedHostel, setSelectedHostel] = useState("all");
+    const [selectedStaff, setSelectedStaff] = useState(null);
+    const [isAssignOpen, setIsAssignOpen] = useState(false);
+    const [assignComplaintId, setAssignComplaintId] = useState("");
+    const [assignNotes, setAssignNotes] = useState("");
+
+    const { data: staffData, isLoading: isStaffLoading } = useStaffList();
+    const { data: complaintsData } = useComplaints({});
+    const { data: hostelsData } = useHostel();
+    const updateMutation = useUpdateComplaint();
+
+    const staffMembers = staffData || [];
+    const complaints = complaintsData || [];
+    const hostels = hostelsData?.data || [];
+
+    // Compute per-staff task stats
+    const staffWithStats = useMemo(() => {
+        return staffMembers.map(staff => {
+            const assigned = complaints.filter(c => c.assignedToId === staff.userId);
+            const active = assigned.filter(c => c.status === "PENDING" || c.status === "IN_PROGRESS").length;
+            const resolved = assigned.filter(c => c.status === "RESOLVED").length;
+            const urgent = assigned.filter(c => c.priority === "URGENT" && c.status !== "RESOLVED").length;
+            const total = assigned.length;
+            const rate = total > 0 ? Math.round((resolved / total) * 100) : 0;
+            return { ...staff, stats: { active, resolved, urgent, total, rate } };
+        });
+    }, [staffMembers, complaints]);
+
+    const unassignedComplaints = useMemo(() =>
+        complaints.filter(c => !c.assignedToId && c.status !== "RESOLVED" && c.status !== "REJECTED"),
+        [complaints]
+    );
+
+    const filteredStaff = useMemo(() => {
+        return staffWithStats.filter(staff => {
+            const name = staff.User?.name?.toLowerCase() || "";
+            const designation = staff.designation?.toLowerCase() || "";
+            const matchesSearch = name.includes(searchQuery.toLowerCase()) || designation.includes(searchQuery.toLowerCase());
+            const matchesHostel = selectedHostel === "all" || staff.User?.hostelId === selectedHostel;
+            return matchesSearch && matchesHostel;
+        });
+    }, [staffWithStats, searchQuery, selectedHostel]);
+
+    const handleAssignTask = () => {
+        if (!assignComplaintId || !selectedStaff) return;
+        updateMutation.mutate({
+            id: assignComplaintId,
+            status: "IN_PROGRESS",
+            assignedToId: selectedStaff.userId,
+        }, {
+            onSuccess: () => {
+                toast.success(`Task assigned to ${selectedStaff.User?.name}`);
+                setIsAssignOpen(false);
+                setAssignComplaintId("");
+                setAssignNotes("");
+                setSelectedStaff(null);
+            }
+        });
+    };
+
+    const totalActive = staffWithStats.reduce((acc, s) => acc + s.stats.active, 0);
+    const totalResolved = staffWithStats.reduce((acc, s) => acc + s.stats.resolved, 0);
+
+    if (isStaffLoading) return <ListPageSkeleton />;
+
+    return (
+        <div className="min-h-screen bg-gray-50 dark:bg-background pb-20">
+            {/* Header */}
+            <div className="bg-white dark:bg-card border-b border-gray-100 dark:border-border sticky top-0 z-40">
+                <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                        <div className="h-8 w-1.5 bg-indigo-600 rounded-full" />
+                        <div>
+                            <h1 className="text-sm font-bold text-gray-900 dark:text-foreground uppercase tracking-tight">Staff</h1>
+                            <p className="text-[10px] text-gray-400 dark:text-muted-foreground font-medium">{staffMembers.length} Total</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 dark:text-muted-foreground" />
+                            <Input
+                                placeholder="Search"
+                                className="h-9 pl-9 w-[220px] rounded-xl border-gray-200 dark:border-border bg-gray-50 dark:bg-muted/10 text-xs font-medium"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                            />
+                        </div>
+                        <Button
+                            variant="outline"
+                            className="h-9 px-4 rounded-xl border-gray-200 dark:border-border font-bold text-[10px] uppercase tracking-wider text-gray-600 dark:text-muted-foreground hover:bg-gray-50 dark:hover:bg-muted/5 dark:bg-muted/10 gap-2 shrink-0 hidden lg:flex"
+                            onClick={() => {
+                                if (!staffMembers || staffMembers.length === 0) {
+                                    toast.error("Empty");
+                                    return;
+                                }
+                                const headers = ["Name", "Designation", "Department", "Hostel", "Tasks Handled", "Rating"];
+                                const rows = staffMembers.map(s => [
+                                    s.User?.name,
+                                    s.designation,
+                                    s.department || 'N/A',
+                                    s.User?.Hostel_User_hostelIdToHostel?.name || 'Unassigned',
+                                    s.totalTasksHandled || 0,
+                                    s.performanceRating || 5.0
+                                ]);
+                                const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
+                                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                                const link = document.createElement("a");
+                                link.href = URL.createObjectURL(blob);
+                                link.setAttribute("download", `Staff_Directory_${format(new Date(), 'yyyyMMdd')}.csv`);
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                                toast.success("Exported");
+                            }}
+                        >
+                            <Download className="h-4 w-4" /> Export
+                        </Button>
+                        <Select value={selectedHostel} onValueChange={setSelectedHostel}>
+                            <SelectTrigger className="h-9 w-[160px] rounded-xl border-gray-200 dark:border-border bg-white dark:bg-card text-[10px] font-bold uppercase tracking-wider">
+                                <SelectValue placeholder="All" />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-2xl border-gray-100 dark:border-border shadow-xl">
+                                <SelectItem value="all" className="text-[10px] font-bold uppercase">All</SelectItem>
+                                {hostels.map(h => (
+                                    <SelectItem key={h.id} value={h.id} className="text-[10px] font-bold uppercase">{h.name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </div>
+            </div>
+
+            <div className="max-w-7xl mx-auto px-6 py-8 space-y-8">
+
+                {/* Overview Stats */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    {[
+                        { label: "Total", value: staffMembers.length, icon: Users, color: "text-gray-700 dark:text-foreground", bg: "bg-white dark:bg-card", iconBg: "bg-gray-100" },
+                        { label: "Online", value: totalActive, icon: Activity, color: "text-indigo-600", bg: "bg-indigo-50", iconBg: "bg-indigo-100" },
+                        { label: "Open", value: unassignedComplaints.length, icon: AlertCircle, color: "text-amber-600", bg: "bg-amber-50", iconBg: "bg-amber-100" },
+                        { label: "Done", value: totalResolved, icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-50", iconBg: "bg-emerald-100" },
+                    ].map((stat, i) => (
+                        <div key={i} className={`${stat.bg} border border-gray-100 dark:border-border rounded-2xl p-5 flex items-center justify-between shadow-sm hover:shadow-md transition-all`}>
+                            <div>
+                                <p className="text-[10px] font-bold text-gray-400 dark:text-muted-foreground uppercase tracking-widest mb-1">{stat.label}</p>
+                                <p className={`text-3xl font-bold ${stat.color}`}>{stat.value}</p>
+                            </div>
+                            <div className={`h-12 w-12 ${stat.iconBg} rounded-2xl flex items-center justify-center`}>
+                                <stat.icon className={`h-6 w-6 ${stat.color}`} />
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                {/* Unassigned Tasks Alert */}
+                {unassignedComplaints.length > 0 && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 bg-amber-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                                <AlertCircle className="h-5 w-5 text-amber-600" />
+                            </div>
+                            <div>
+                                <p className="text-sm font-bold text-amber-900">{unassignedComplaints.length} Pending</p>
+                                <p className="text-xs text-amber-700 font-medium mt-0.5">Ready</p>
+                            </div>
+                        </div>
+                        <Link href="/admin/complaints">
+                            <Button className="h-9 px-4 bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-bold rounded-xl gap-2 flex-shrink-0">
+                                View <ArrowUpRight className="h-3.5 w-3.5" />
+                            </Button>
+                        </Link>
+                    </div>
+                )}
+
+                {/* Staff Grid */}
+                <div>
+                    <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-sm font-bold text-gray-900 dark:text-foreground uppercase tracking-tight">Staff</h2>
+                        <p className="text-[10px] text-gray-400 dark:text-muted-foreground font-medium">{filteredStaff.length} shown</p>
+                    </div>
+
+                    {filteredStaff.length === 0 ? (
+                        <div className="text-center py-20 bg-white dark:bg-card border border-dashed border-gray-200 dark:border-border rounded-3xl">
+                            <Users className="h-12 w-12 text-gray-200 mx-auto mb-4" />
+                            <p className="text-sm font-bold text-gray-400 dark:text-muted-foreground">No records</p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                            {filteredStaff.map(staff => (
+                                <div key={staff.id} className="bg-white dark:bg-card border border-gray-100 dark:border-border rounded-3xl overflow-hidden shadow-sm hover:shadow-md transition-all group">
+                                    {/* Card Header */}
+                                    <div className="p-6 border-b border-gray-50">
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div className="flex items-center gap-3">
+                                                <div className="h-12 w-12 bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-2xl flex items-center justify-center text-white font-bold text-lg flex-shrink-0 shadow-lg shadow-indigo-200">
+                                                    {staff.User?.name?.charAt(0) || "S"}
+                                                </div>
+                                                <div>
+                                                    <div className="flex items-center gap-2">
+                                                        <h3 className="text-sm font-bold text-gray-900 dark:text-foreground">{staff.User?.name}</h3>
+                                                        {staff.attendance?.[0] && !staff.attendance[0].checkOut && (
+                                                            <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" title="On Duty" />
+                                                        )}
+                                                    </div>
+                                                    <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider">{staff.designation}</p>
+                                                    <div className="flex items-center gap-2 mt-0.5">
+                                                        {staff.department && (
+                                                            <p className="text-[9px] text-gray-400 dark:text-muted-foreground font-medium">{staff.department}</p>
+                                                        )}
+                                                        <div className="h-1 w-1 rounded-full bg-gray-200" />
+                                                        <div className="flex items-center gap-0.5">
+                                                            <Star className="h-2.5 w-2.5 text-amber-400 fill-amber-400" />
+                                                            <span className="text-[9px] font-bold text-gray-600 dark:text-muted-foreground">{staff.performanceRating?.toFixed(1) || "5.0"}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <Badge className={`${staff.attendance?.[0] && !staff.attendance[0].checkOut ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-gray-50 dark:bg-muted/10 text-gray-400 dark:text-muted-foreground border-gray-200 dark:border-border'} text-[8px] font-black uppercase border`}>
+                                                {staff.attendance?.[0] && !staff.attendance[0].checkOut ? 'Active' : 'Offline'}
+                                            </Badge>
+                                        </div>
+
+                                        {staff.User?.Hostel_User_hostelIdToHostel && (
+                                            <div className="flex items-center gap-1.5 mt-3 text-[10px] text-gray-400 dark:text-muted-foreground font-medium">
+                                                <Building2 className="h-3 w-3" />
+                                                {staff.User.Hostel_User_hostelIdToHostel.name}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Stats */}
+                                    <div className="px-6 py-4 grid grid-cols-3 gap-3">
+                                        <div className="text-center">
+                                            <p className="text-xl font-bold text-gray-900 dark:text-foreground">{staff.stats.active}</p>
+                                            <p className="text-[9px] font-bold text-gray-400 dark:text-muted-foreground uppercase tracking-wider">Active</p>
+                                        </div>
+                                        <div className="text-center border-x border-gray-100 dark:border-border">
+                                            <p className="text-xl font-bold text-emerald-600">{staff.totalTasksHandled || 0}</p>
+                                            <p className="text-[9px] font-bold text-gray-400 dark:text-muted-foreground uppercase tracking-wider">Total</p>
+                                        </div>
+                                        <div className="text-center">
+                                            <p className={`text-xl font-bold ${staff.stats.urgent > 0 ? "text-rose-600" : "text-gray-300"}`}>{staff.stats.urgent}</p>
+                                            <p className="text-[9px] font-bold text-gray-400 dark:text-muted-foreground uppercase tracking-wider">Urgent</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Efficiency Profile Bar */}
+                                    <div className="px-6 pb-4">
+                                        <div className="flex items-center justify-between mb-1.5">
+                                            <span className="text-[9px] font-bold text-gray-400 dark:text-muted-foreground uppercase tracking-wider">Rate</span>
+                                            <span className="text-[10px] font-bold text-gray-700 dark:text-foreground">{staff.totalTasksHandled > 0 ? staff.stats.rate : 0}%</span>
+                                        </div>
+                                        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                            <div
+                                                className="h-full bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-full transition-all duration-700"
+                                                style={{ width: `${staff.totalTasksHandled > 0 ? staff.stats.rate : 0}%` }}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Actions */}
+                                    <div className="px-6 pb-6 flex items-center gap-2">
+                                        <Button
+                                            className="flex-1 h-9 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold rounded-xl gap-1.5"
+                                            onClick={() => {
+                                                setSelectedStaff(staff);
+                                                setIsAssignOpen(true);
+                                            }}
+                                        >
+                                            <ClipboardList className="h-3.5 w-3.5" /> Task
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            size="icon"
+                                            className="h-9 w-9 rounded-xl border-gray-200 dark:border-border hover:border-indigo-300 hover:bg-indigo-50"
+                                            onClick={() => setSelectedStaff(selectedStaff?.id === staff.id ? null : staff)}
+                                        >
+                                            <ChevronRight className="h-4 w-4 text-gray-500 dark:text-muted-foreground" />
+                                        </Button>
+                                    </div>
+
+                                    {/* Expanded Task List */}
+                                    {selectedStaff?.id === staff.id && !isAssignOpen && (
+                                        <div className="border-t border-gray-100 dark:border-border bg-gray-50 dark:bg-background">
+                                            <div className="px-6 py-4">
+                                                <p className="text-[9px] font-bold text-gray-400 dark:text-muted-foreground uppercase tracking-widest mb-3">Tasks</p>
+                                                {complaints.filter(c => c.assignedToId === staff.userId && c.status !== "RESOLVED").length === 0 ? (
+                                                    <p className="text-xs text-gray-400 dark:text-muted-foreground text-center py-3">Empty</p>
+                                                ) : (
+                                                    <div className="space-y-2">
+                                                        {complaints.filter(c => c.assignedToId === staff.userId && c.status !== "RESOLVED").slice(0, 4).map(task => (
+                                                            <div key={task.id} className="flex items-center justify-between gap-2 p-2.5 bg-white dark:bg-card rounded-xl border border-gray-100 dark:border-border">
+                                                                <div className="flex items-center gap-2 min-w-0">
+                                                                    <div className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${task.priority === "URGENT" ? "bg-rose-500" : task.priority === "HIGH" ? "bg-orange-500" : "bg-amber-400"}`} />
+                                                                    <p className="text-[10px] font-bold text-gray-700 dark:text-foreground truncate">{task.title}</p>
+                                                                </div>
+                                                                <span className={`text-[8px] font-bold uppercase px-1.5 py-0.5 rounded-full flex-shrink-0 ${task.status === "IN_PROGRESS" ? "bg-indigo-50 text-indigo-600" : "bg-gray-100 text-gray-500 dark:text-muted-foreground"}`}>
+                                                                    {task.status.replace("_", " ")}
+                                                                </span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Assign Task Dialog */}
+            <Dialog open={isAssignOpen} onOpenChange={setIsAssignOpen}>
+                <DialogContent className="max-w-md rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
+                    <div className="bg-gradient-to-br from-indigo-900 to-black p-8 text-white">
+                        <div className="flex items-center gap-3 mb-2">
+                            <div className="h-10 w-10 bg-white dark:bg-card/10 rounded-xl flex items-center justify-center">
+                                <ClipboardList className="h-5 w-5 text-white" />
+                            </div>
+                            <div>
+                                <h2 className="text-sm font-bold uppercase tracking-tight">Assign</h2>
+                                <p className="text-[10px] text-indigo-300 font-medium">to {selectedStaff?.User?.name}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="p-6 space-y-5 bg-white dark:bg-card">
+                        <div className="space-y-2">
+                            <Label className="text-[9px] font-bold uppercase tracking-widest text-gray-400 dark:text-muted-foreground">Task</Label>
+                            <Select value={assignComplaintId} onValueChange={setAssignComplaintId}>
+                                <SelectTrigger className="h-11 rounded-xl border-gray-200 dark:border-border font-medium text-xs focus:ring-0">
+                                    <SelectValue placeholder="Task" />
+                                </SelectTrigger>
+                                <SelectContent className="rounded-2xl border-gray-100 dark:border-border shadow-2xl max-h-[300px]">
+                                    {unassignedComplaints.length === 0 ? (
+                                        <div className="px-4 py-3 text-xs text-gray-400 dark:text-muted-foreground text-center">No tasks</div>
+                                    ) : (
+                                        unassignedComplaints.map(c => (
+                                            <SelectItem key={c.id} value={c.id} className="text-xs font-medium">
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${c.priority === "URGENT" ? "bg-rose-500" : c.priority === "HIGH" ? "bg-orange-500" : "bg-amber-400"}`} />
+                                                    {c.title} — Room {c.roomNumber || "N/A"}
+                                                </div>
+                                            </SelectItem>
+                                        ))
+                                    )}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {assignComplaintId && (
+                            <div className="p-4 bg-gray-50 dark:bg-muted/10 rounded-2xl border border-gray-100 dark:border-border">
+                                {(() => {
+                                    const c = unassignedComplaints.find(x => x.id === assignComplaintId);
+                                    if (!c) return null;
+                                    return (
+                                        <div className="space-y-1">
+                                            <p className="text-xs font-bold text-gray-900 dark:text-foreground">{c.title}</p>
+                                            <p className="text-[10px] text-gray-500 dark:text-muted-foreground font-medium line-clamp-2">{c.description}</p>
+                                            <div className="flex items-center gap-3 mt-2 text-[9px] text-gray-400 dark:text-muted-foreground font-bold uppercase">
+                                                <span className="flex items-center gap-1"><MapPin className="h-2.5 w-2.5" /> Room {c.roomNumber || "N/A"}</span>
+                                                <span className={`px-2 py-0.5 rounded-full ${c.priority === "URGENT" ? "bg-rose-50 text-rose-600" : "bg-amber-50 text-amber-600"}`}>{c.priority}</span>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+                        )}
+
+                        <div className="space-y-2">
+                            <Label className="text-[9px] font-bold uppercase tracking-widest text-gray-400 dark:text-muted-foreground">Notes</Label>
+                            <Textarea
+                                placeholder="Note"
+                                className="min-h-[80px] rounded-xl border-gray-200 dark:border-border bg-gray-50 dark:bg-muted/10 focus:bg-white dark:bg-card text-xs font-medium resize-none"
+                                value={assignNotes}
+                                onChange={(e) => setAssignNotes(e.target.value)}
+                            />
+                        </div>
+
+                        <div className="flex items-center gap-3 pt-2">
+                            <Button
+                                variant="outline"
+                                className="flex-1 h-11 rounded-xl border-gray-200 dark:border-border text-[10px] font-bold uppercase"
+                                onClick={() => setIsAssignOpen(false)}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                className="flex-1 h-11 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-bold uppercase gap-2 shadow-lg shadow-indigo-200"
+                                onClick={handleAssignTask}
+                                disabled={!assignComplaintId || updateMutation.isPending}
+                            >
+                                <UserCheck className="h-3.5 w-3.5" />
+                                {updateMutation.isPending ? "Assign" : "Assign"}
+                            </Button>
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
+        </div>
+    );
+};
+
+export default AdminStaffPage;

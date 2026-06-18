@@ -1,0 +1,438 @@
+const { PrismaClient } = require('@prisma/client');
+const { randomUUID } = require('crypto');
+const bcrypt = require('bcrypt');
+
+const prisma = new PrismaClient();
+
+async function main() {
+    console.log('🚀 Starting Database Reset and Seeding...');
+
+    // 1. Clear all data
+    console.log('🗑️  Clearing existing data...');
+
+    // Ordered deletion to handle foreign keys
+    const tablenames = [
+        'Booking',
+        'ComplaintComment',
+        'Complaint',
+        'TaskComment',
+        'StaffTask',
+        'Maintenance',
+        'CleaningLog',
+        'LaundryLog',
+        'Room',
+        'Payment',
+        'Expense',
+        'RefundRequest',
+        'Salary',
+        'WardenPayment',
+        'StaffAttendance',
+        'StaffProfile',
+        'ResidentProfile',
+        'Session',
+        'OtpVerification',
+        'resetPassword',
+        'MessMenu',
+        'Notice',
+        'User',
+        'Hostel',
+        'Subscription',
+        'Tenant',
+    ];
+
+    for (const tablename of tablenames) {
+        try {
+            await prisma[tablename.charAt(0).toLowerCase() + tablename.slice(1)].deleteMany();
+            console.log(`      ✓ Cleared ${tablename}`);
+        } catch (e) {
+            console.error(`      ✗ Error clearing ${tablename}:`, e.message);
+        }
+    }
+
+    console.log('✅ Base data cleared.\n');
+
+    const saltRounds = 10;
+    const defaultPassword = await bcrypt.hash('password123', saltRounds);
+
+    // Create Tenant
+    console.log('🏢 Creating Default Tenant...');
+    const tenantId = randomUUID();
+    const tenant = await prisma.tenant.create({
+        data: {
+            id: tenantId,
+            name: 'Portal HMS Default',
+            slug: 'default',
+            plan: 'enterprise',
+            isActive: true,
+        }
+    });
+
+    // Create Subscription
+    await prisma.subscription.create({
+        data: {
+            id: randomUUID(),
+            tenantId: tenantId,
+            plan: 'enterprise',
+            status: 'active',
+            paidUntil: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year
+        }
+    });
+    console.log('✅ Default Tenant and Subscription created.');
+
+    // 2. Create Admin
+    console.log('👤 Creating Admin...');
+    const admin = await prisma.user.create({
+        data: {
+            id: randomUUID(),
+            tenantId: tenant.id,
+            name: 'Super Admin',
+            email: '1@gmail.com',
+            password: defaultPassword,
+            role: 'ADMIN',
+            phone: '0300-1111111',
+            isActive: true,
+            updatedAt: new Date()
+        }
+    });
+    console.log('✅ Admin created.');
+
+    // 3. Create Hostels
+    console.log('🏠 Creating Hostels...');
+    const hostelData = [
+        {
+            name: 'GreenView Boys Hostel',
+            type: 'BOYS',
+            address: '123 Main St, Lahore',
+            city: 'Lahore',
+            state: 'Punjab',
+            country: 'Pakistan',
+            floors: 4,
+            rooms: 40,
+            monthlyRent: 15000,
+            perNightRent: 500,
+            description: 'Modern boys hostel with high-speed internet and attached bathrooms.',
+            status: 'ACTIVE',
+            phone: '0300-2222222',
+            email: 'greenview@hostel.com',
+            laundryAvailable: true,
+            messAvailable: true,
+            completeAddress: '123 Main St, Lahore, Punjab, Pakistan',
+            updatedAt: new Date()
+        },
+        {
+            name: 'Rosewood Girls Hostel',
+            type: 'GIRLS',
+            address: '456 Park Avenue, Karachi',
+            city: 'Karachi',
+            state: 'Sindh',
+            country: 'Pakistan',
+            floors: 5,
+            rooms: 50,
+            monthlyRent: 18000,
+            perNightRent: 600,
+            description: 'Safe and secure girls hostel with 24/7 power backup and security.',
+            status: 'ACTIVE',
+            phone: '0300-3333333',
+            email: 'rosewood@hostel.com',
+            laundryAvailable: true,
+            messAvailable: true,
+            completeAddress: '456 Park Avenue, Karachi, Sindh, Pakistan',
+            updatedAt: new Date()
+        },
+        {
+            name: 'Elite Mixed Hostel',
+            type: 'MIXED',
+            address: '789 Commercial Rd, Islamabad',
+            city: 'Islamabad',
+            state: 'Punjab',
+            country: 'Pakistan',
+            floors: 3,
+            rooms: 30,
+            monthlyRent: 20000,
+            perNightRent: 800,
+            description: 'Premium mixed hostel with separate wings and luxury amenities.',
+            status: 'ACTIVE',
+            phone: '0300-4444444',
+            email: 'elite@hostel.com',
+            laundryAvailable: false,
+            messAvailable: true,
+            completeAddress: '789 Commercial Rd, Islamabad, Punjab, Pakistan',
+            updatedAt: new Date()
+        }
+    ];
+
+    const hostels = [];
+    for (const data of hostelData) {
+        const hostel = await prisma.hostel.create({
+            data: {
+                id: randomUUID(),
+                tenantId: tenant.id,
+                name: data.name,
+                type: data.type,
+                address: data.address,
+                city: data.city,
+                state: data.state,
+                country: data.country,
+                phone: data.phone,
+                email: data.email,
+                description: data.description,
+                floors: data.floors,
+                montlyrent: data.monthlyRent,
+                pernightrent: data.perNightRent,
+                status: data.status,
+                completeaddress: data.completeAddress,
+                laundaryavailable: data.laundryAvailable,
+                messavailable: data.messAvailable,
+                totalRooms: data.rooms,
+                amenities: [],
+                images: [],
+                updatedAt: data.updatedAt,
+            },
+        });
+        hostels.push(hostel);
+    }
+    console.log('✅ Hostels created.');
+
+    // 4. Create Wardens
+    console.log('🛡️ Creating Wardens...');
+    const wardens = [];
+    for (let i = 0; i < hostels.length; i++) {
+        const warden = await prisma.user.create({
+            data: {
+                id: randomUUID(),
+                tenantId: tenant.id,
+                name: `Warden ${hostels[i].name.split(' ')[0]}`,
+                email: `warden${i + 1}@hostel.com`,
+                password: defaultPassword,
+                role: 'WARDEN',
+                phone: `0311-000000${i + 1}`,
+                hostelId: hostels[i].id,
+                isActive: true,
+                updatedAt: new Date()
+            }
+        });
+
+        // Assign warden to hostel
+        await prisma.hostel.update({
+            where: { id: hostels[i].id },
+            data: { managerId: warden.id }
+        });
+
+        wardens.push(warden);
+    }
+    console.log('✅ Wardens created and assigned.');
+
+    // 5. Create Rooms
+    console.log('🚪 Creating Rooms...');
+    const roomTypes = ['SINGLE', 'DOUBLE', 'TRIPLE'];
+    const rooms = [];
+    for (const hostel of hostels) {
+        for (let i = 1; i <= 10; i++) { // 10 rooms per hostel for seeding
+            const rType = roomTypes[Math.floor(Math.random() * roomTypes.length)];
+            const capacity = roomTypes.indexOf(rType) + 1;
+            const monthlyRent = (hostel.montlyrent || 15000) * (1 + (capacity - 1) * 0.5);
+
+            const room = await prisma.room.create({
+                data: {
+                    id: randomUUID(),
+                    tenantId: tenant.id,
+                    hostelId: hostel.id,
+                    roomNumber: `${Math.floor((i - 1) / 5) + 1}0${(i - 1) % 5 + 1}`,
+                    floor: Math.floor((i - 1) / 5) + 1,
+                    type: rType,
+                    capacity: capacity,
+                    price: monthlyRent,
+                    status: 'AVAILABLE',
+                    amenities: ['WiFi', 'Cabinet', 'Bed', 'Fan'],
+                    images: [],
+                    updatedAt: new Date()
+                }
+            });
+            rooms.push({ ...room, _seedMonthlyRent: monthlyRent });
+        }
+    }
+    console.log('✅ Rooms created.');
+
+    // 6. Create Residents & Bookings
+    console.log('👥 Creating Residents & Bookings...');
+    const residentNames = [
+        'Ali Khan', 'Zainab Bibi', 'Umer Farooq', 'Sara Ahmed', 'Bilal Shah',
+        'Hira Mani', 'Usman Butt', 'Maham Tariq', 'Hamza Ali', 'Dua Fatima'
+    ];
+
+    for (let i = 0; i < residentNames.length; i++) {
+        const hostel = hostels[i % hostels.length];
+        const room = rooms.find(r => r.hostelId === hostel.id);
+
+        if (!room) continue;
+
+        const resident = await prisma.user.create({
+            data: {
+                id: randomUUID(),
+                tenantId: tenant.id,
+                name: residentNames[i],
+                email: `resident${i + 1}@example.com`,
+                password: defaultPassword,
+                role: 'RESIDENT',
+                phone: `0322-111111${i + 1}`,
+                hostelId: hostel.id,
+                isActive: true,
+                updatedAt: new Date(),
+                ResidentProfile: {
+                    create: {
+                        id: randomUUID(),
+                        tenantId: tenant.id,
+                        guardianName: 'Guardian Name',
+                        guardianPhone: '0333-0000000',
+                        emergencyContact: '0333-9999999'
+                    }
+                }
+            }
+        });
+
+        // Create Booking
+        const checkIn = new Date();
+        checkIn.setDate(checkIn.getDate() - 30); // 30 days ago
+
+        await prisma.booking.create({
+            data: {
+                id: randomUUID(),
+                tenantId: tenant.id,
+                userId: resident.id,
+                roomId: room.id,
+                checkIn: checkIn,
+                status: 'CONFIRMED',
+                totalAmount: room._seedMonthlyRent,
+                securityDeposit: 5000,
+                updatedAt: new Date()
+            }
+        });
+
+        // Add Payment
+        await prisma.payment.create({
+            data: {
+                id: randomUUID(),
+                tenantId: tenant.id,
+                userId: resident.id,
+                bookingId: null,
+                amount: room._seedMonthlyRent,
+                status: 'PAID',
+                method: 'CASH',
+                type: 'MONTHLY_RENT',
+                date: new Date(),
+                dueDate: null,
+                notes: 'Seed monthly rent payment',
+                updatedAt: new Date()
+            }
+        });
+    }
+    console.log('✅ Residents, Bookings, and Payments created.');
+
+    // 7. Create Staff
+    console.log('👷 Creating Staff...');
+    const staffRoles = [
+        { name: 'John Guard', designation: 'Security Guard', salary: 25000 },
+        { name: 'Mary Clean', designation: 'Cleanup Staff', salary: 20000 },
+        { name: 'Dave Cook', designation: 'Chef', salary: 30000 }
+    ];
+
+    for (let i = 0; i < staffRoles.length; i++) {
+        const hostel = hostels[i % hostels.length];
+        await prisma.user.create({
+            data: {
+                id: randomUUID(),
+                tenantId: tenant.id,
+                name: staffRoles[i].name,
+                email: `staff${i + 1}@hostel.com`,
+                password: defaultPassword,
+                role: 'STAFF',
+                hostelId: hostel.id,
+                isActive: true,
+                updatedAt: new Date(),
+                StaffProfile: {
+                    create: {
+                        id: randomUUID(),
+                        tenantId: tenant.id,
+                        designation: staffRoles[i].designation,
+                        department: 'Operations',
+                        basicSalary: staffRoles[i].salary,
+                        joiningDate: new Date()
+                    }
+                }
+            }
+        });
+    }
+    console.log('✅ Staff created.');
+
+    // 8. Create Expenses
+    console.log('💸 Creating Expenses...');
+    for (const hostel of hostels) {
+        await prisma.expense.create({
+            data: {
+                id: randomUUID(),
+                tenantId: tenant.id,
+                hostelId: hostel.id,
+                submittedById: admin.id,
+                title: 'Electricity Bill',
+                amount: 12000,
+                category: 'UTILITY_BILL',
+                status: 'APPROVED',
+                description: 'Monthly electricity bill for the hostel.',
+                date: new Date(),
+                updatedAt: new Date()
+            }
+        });
+    }
+    console.log('✅ Expenses created.');
+
+    // 9. Create Mess Menu
+    console.log('🍴 Creating Mess Menu...');
+    const days = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'];
+    for (const hostel of hostels) {
+        for (const day of days) {
+            await prisma.messMenu.create({
+                data: {
+                    id: randomUUID(),
+                    tenantId: tenant.id,
+                    hostelId: hostel.id,
+                    dayOfWeek: day,
+                    breakfast: 'Eggs, Bread, Tea',
+                    lunch: 'Rice and Dal',
+                    dinner: 'Chicken Curry and Naan',
+                    breakfastTime: '08:00 AM',
+                    lunchTime: '01:30 PM',
+                    dinnerTime: '08:30 PM'
+                }
+            });
+        }
+    }
+    console.log('✅ Mess Menu created.');
+
+    // 10. Create Notices
+    console.log('📢 Creating Notices...');
+    for (const hostel of hostels) {
+        await prisma.notice.create({
+            data: {
+                id: randomUUID(),
+                tenantId: tenant.id,
+                title: 'Monthly Maintenance',
+                content: 'The hostel will undergo monthly maintenance this Sunday.',
+                targetRoles: ['GUEST', 'WARDEN', 'STAFF'],
+                hostelId: hostel.id,
+                authorId: admin.id
+            }
+        });
+    }
+    console.log('✅ Notices created.');
+
+    console.log('\n✨ Seeding Completed Successfully! ✨');
+}
+
+main()
+    .catch((e) => {
+        console.error('❌ Seeding failed:', e);
+        process.exit(1);
+    })
+    .finally(async () => {
+        await prisma.$disconnect();
+    });
